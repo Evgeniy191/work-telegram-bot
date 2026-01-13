@@ -1,0 +1,22 @@
+# Переменные окружения
+.env
+
+# Бинарные файлы
+*.exe
+bot.exe
+bin/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Go
+*.out
+vendor/
+
+# OS
+.DS_Store
+Thumbs.db
