@@ -2,12 +2,12 @@ package main
 
 import (
 	"log"
+	"os"
 
+	"github.com/Evgeniy191/work-telegram-bot/internal/handlers"
+	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards/inline"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
-
-	"github.com/Evgeniy191/work-telegram-bot/internal/config"
-	"github.com/Evgeniy191/work-telegram-bot/internal/handlers"
 )
 
 func main() {
@@ -16,16 +16,18 @@ func main() {
 		log.Println("Файл .env не найден, используем системные переменные")
 	}
 
-	// Загружаем конфигурацию
-	cfg := config.Load()
+	token := os.Getenv("TELEGRAM_TOKEN") // Вместо "BOT_TOKEN"
+	if token == "" {
+		log.Fatal("❌ TELEGRAM_TOKEN не установлен в .env")
+	}
 
 	// Создаём бота
-	bot, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
+	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	bot.Debug = cfg.Debug
+	bot.Debug = true // ✅ Вместо cfg.Debug
 	log.Printf("Авторизован как %s", bot.Self.UserName)
 
 	// Настраиваем получение обновлений
@@ -36,6 +38,10 @@ func main() {
 
 	// Обрабатываем обновления
 	for update := range updates {
+		if update.CallbackQuery != nil {
+			handlers.HandleCallback(bot, update)
+			continue
+		}
 		if update.Message == nil {
 			continue
 		}
@@ -51,7 +57,9 @@ func main() {
 		case "/about":
 			handlers.HandleAbout(bot, update)
 		case "📋 Проекты":
-			handlers.HandleProjects(bot, update)
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "📋 Выбери проект:")
+			msg.ReplyMarkup = inline.ProjectsList()
+			bot.Send(msg)
 		case "📝 Задачи":
 			handlers.HandleTasks(bot, update)
 		case "👷 Мастера":

@@ -1,0 +1,97 @@
+package handlers
+
+import (
+	"log"
+
+	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards/inline"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+)
+
+// HandleCallback — обрабатывает все callback queries от inline-кнопок
+func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	callback := update.CallbackQuery
+	data := callback.Data
+	chatID := callback.Message.Chat.ID
+
+	log.Printf("📲 Получен callback: %s от пользователя %s", data, callback.From.UserName)
+
+	// ✅ ВАЖНО: Подтверждаем получение (убирает спиннер)
+	callbackConfig := tgbotapi.NewCallback(callback.ID, "")
+	if _, err := bot.Request(callbackConfig); err != nil {
+		log.Printf("❌ Ошибка AnswerCallbackQuery: %v", err)
+	}
+
+	// Обработка по callback_data
+	switch data {
+	case "project_1":
+		msg := tgbotapi.NewMessage(chatID, "🏗️ <b>Проект: Монтаж труб А</b>\n\n"+
+			"📍 Статус: В работе ✅\n"+
+			"👷 Бригада: 5 человек\n"+
+			"📅 Срок: 15.02.2026\n\n"+
+			"Выбери задачу:")
+		msg.ParseMode = "HTML"
+		msg.ReplyMarkup = inline.TasksList()
+		bot.Send(msg)
+
+	case "project_2":
+		msg := tgbotapi.NewMessage(chatID, "🔧 <b>Проект: Оборудование Б</b>\n\n"+
+			"📍 Статус: Завершён ✅\n"+
+			"📅 Дата завершения: 10.01.2026")
+		msg.ParseMode = "HTML"
+		bot.Send(msg)
+
+	case "project_3":
+		msg := tgbotapi.NewMessage(chatID, "🔩 <b>Проект: Монтаж м/к</b>\n\n"+
+			"📍 Статус: Планирование 📝\n"+
+			"📅 Старт: 01.03.2026")
+		msg.ParseMode = "HTML"
+		bot.Send(msg)
+
+	case "project_new":
+		msg := tgbotapi.NewMessage(chatID, "➕ <b>Создание нового проекта</b>\n\n"+
+			"📝 Введи название проекта:")
+		msg.ParseMode = "HTML"
+		bot.Send(msg)
+
+	case "task_docs":
+		msg := tgbotapi.NewMessage(chatID, "✅ <b>Задача: Проверить документы</b>\n\n"+
+			"Документы проверены! 🎉\n"+
+			"Отметить выполненной?")
+		msg.ParseMode = "HTML"
+		msg.ReplyMarkup = inline.ConfirmAction()
+		bot.Send(msg)
+
+	case "task_materials":
+		msg := tgbotapi.NewMessage(chatID, "⏳ <b>Задача: Закупка материалов</b>\n\n"+
+			"Статус: В процессе\n"+
+			"💰 Бюджет: 150 000 ₽")
+		msg.ParseMode = "HTML"
+		bot.Send(msg)
+
+	case "task_report":
+		msg := tgbotapi.NewMessage(chatID, "📊 <b>Отчёт по проекту</b>\n\n"+
+			"✅ Выполнено: 65%\n"+
+			"⏳ В процессе: 25%\n"+
+			"❌ Не начато: 10%")
+		msg.ParseMode = "HTML"
+		bot.Send(msg)
+
+	case "back_projects":
+		msg := tgbotapi.NewMessage(chatID, "◀️ Возврат к списку проектов:")
+		msg.ReplyMarkup = inline.ProjectsList()
+		bot.Send(msg)
+
+	case "confirm_yes":
+		msg := tgbotapi.NewMessage(chatID, "✅ Действие подтверждено!\n\nЗадача отмечена как выполненная.")
+		bot.Send(msg)
+
+	case "confirm_no":
+		msg := tgbotapi.NewMessage(chatID, "❌ Действие отменено.")
+		bot.Send(msg)
+
+	default:
+		log.Printf("⚠️ Неизвестный callback_data: %s", data)
+		msg := tgbotapi.NewMessage(chatID, "❌ Неизвестная команда")
+		bot.Send(msg)
+	}
+}
