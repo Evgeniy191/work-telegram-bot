@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/Evgeniy191/work-telegram-bot/internal/fsm"
 	"github.com/Evgeniy191/work-telegram-bot/internal/handlers"
 	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards/inline"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -30,25 +31,37 @@ func main() {
 	bot.Debug = true // ✅ Вместо cfg.Debug
 	log.Printf("Авторизован как %s", bot.Self.UserName)
 
-	// Настраиваем получение обновлений
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
+	// Создаём FSM менеджер
+	fsmManager := fsm.NewManager()
 
-	updates := bot.GetUpdatesChan(u)
+	log.Println("🔄 FSM менеджер инициализирован")
+
+	// Настраиваем получение обновлений
+	updateConfig := tgbotapi.NewUpdate(0)
+	updateConfig.Timeout = 60
+	updates := bot.GetUpdatesChan(updateConfig)
 
 	// Обрабатываем обновления
 	for update := range updates {
+		// Inline-кнопки
 		if update.CallbackQuery != nil {
-			handlers.HandleCallback(bot, update)
+			handlers.HandleCallback(bot, update, fsmManager)
 			continue
 		}
+
+		// Сообщения
 		if update.Message == nil {
 			continue
 		}
 
 		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
-		// Обработка команд
+		// Проверяем FSM ПЕРЕД switch
+		if handlers.HandleFSMMessage(bot, update, fsmManager) {
+			continue // Сообщение обработано FSM
+		}
+
+		// Обработка команд и Reply-кнопок
 		switch update.Message.Text {
 		case "/start":
 			handlers.HandleStart(bot, update)
@@ -60,6 +73,12 @@ func main() {
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "📋 Выбери проект:")
 			msg.ReplyMarkup = inline.ProjectsList()
 			bot.Send(msg)
+		case "➕ Новый проект":
+			// Запускаем FSM диалог
+			handlers.StartProjectCreation(bot, update.Message.Chat.ID, fsmManager)
+		case "➕ Новая задача":
+			// Запускаем FSM диалог
+			handlers.StartTaskCreation(bot, update.Message.Chat.ID, fsmManager)
 		case "📝 Задачи":
 			handlers.HandleTasks(bot, update)
 		case "👷 Мастера":
@@ -73,10 +92,6 @@ func main() {
 			// В блоке switch добавь:
 		case "⚡ Быстрые действия":
 			handlers.HandleQuickActions(bot, update)
-		case "➕ Новый проект":
-			handlers.HandleNewProject(bot, update)
-		case "➕ Новая задача":
-			handlers.HandleNewTask(bot, update)
 		case "📋 Мои проекты":
 			handlers.HandleMyProjects(bot, update)
 		case "📝 Мои задачи":

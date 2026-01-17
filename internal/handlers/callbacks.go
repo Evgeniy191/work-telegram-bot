@@ -3,19 +3,20 @@ package handlers
 import (
 	"log"
 
+	"github.com/Evgeniy191/work-telegram-bot/internal/fsm"
 	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards/inline"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // HandleCallback — обрабатывает все callback queries от inline-кнопок
-func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fsm.Manager) {
 	callback := update.CallbackQuery
 	data := callback.Data
 	chatID := callback.Message.Chat.ID
 
 	log.Printf("📲 Получен callback: %s от пользователя %s", data, callback.From.UserName)
 
-	// ✅ ВАЖНО: Подтверждаем получение (убирает спиннер)
+	// Подтверждаем получение (убирает спиннер)
 	callbackConfig := tgbotapi.NewCallback(callback.ID, "")
 	if _, err := bot.Request(callbackConfig); err != nil {
 		log.Printf("❌ Ошибка AnswerCallbackQuery: %v", err)
@@ -48,10 +49,8 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 		bot.Send(msg)
 
 	case "project_new":
-		msg := tgbotapi.NewMessage(chatID, "➕ <b>Создание нового проекта</b>\n\n"+
-			"📝 Введи название проекта:")
-		msg.ParseMode = "HTML"
-		bot.Send(msg)
+		// ✅ ЗАПУСКАЕМ FSM!
+		StartProjectCreation(bot, chatID, fsmManager)
 
 	case "task_docs":
 		msg := tgbotapi.NewMessage(chatID, "✅ <b>Задача: Проверить документы</b>\n\n"+
