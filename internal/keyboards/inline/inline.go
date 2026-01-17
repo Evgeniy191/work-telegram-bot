@@ -49,3 +49,19 @@ func ConfirmAction() tgbotapi.InlineKeyboardMarkup {
 		),
 	)
 }
+
+// ProjectTypeKeyboard — inline-клавиатура выбора типа проекта
+func ProjectTypeKeyboard() tgbotapi.InlineKeyboardMarkup {
+	log.Println("📋 Генерация inline-клавиатуры 'Тип проекта'")
+
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔧 Монтаж", "type_montazh"),
+			tgbotapi.NewInlineKeyboardButtonData("🛠️ Ремонт", "type_remont"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⚙️ Установка", "type_ustanovka"),
+			tgbotapi.NewInlineKeyboardButtonData("🏗️ Строительство", "type_stroitelstvo"),
+		),
+	)
+}

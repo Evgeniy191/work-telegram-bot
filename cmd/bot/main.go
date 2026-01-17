@@ -56,6 +56,21 @@ func main() {
 
 		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
+		if update.Message.Text == "/cancel" {
+			chatID := update.Message.Chat.ID
+			currentState := fsmManager.GetState(chatID)
+
+			if currentState != fsm.StateIdle {
+				fsmManager.ResetState(chatID)
+				msg := tgbotapi.NewMessage(chatID, "❌ Действие отменено. Возврат в главное меню.")
+				bot.Send(msg)
+			} else {
+				msg := tgbotapi.NewMessage(chatID, "⚠️ Нечего отменять. Ты в главном меню.")
+				bot.Send(msg)
+			}
+			continue // Прерываем цикл
+		}
+
 		// Проверяем FSM ПЕРЕД switch
 		if handlers.HandleFSMMessage(bot, update, fsmManager) {
 			continue // Сообщение обработано FSM

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/Evgeniy191/work-telegram-bot/internal/fsm"
@@ -86,6 +87,41 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 
 	case "confirm_no":
 		msg := tgbotapi.NewMessage(chatID, "❌ Действие отменено.")
+		bot.Send(msg)
+
+	case "type_montazh", "type_remont", "type_ustanovka", "type_stroitelstvo":
+		// Определяем название типа по callback_data
+		var typeName string
+		var typeEmoji string
+
+		switch data {
+		case "type_montazh":
+			typeName = "Монтаж"
+			typeEmoji = "🔧"
+		case "type_remont":
+			typeName = "Ремонт"
+			typeEmoji = "🛠️"
+		case "type_ustanovka":
+			typeName = "Установка"
+			typeEmoji = "⚙️"
+		case "type_stroitelstvo":
+			typeName = "Строительство"
+			typeEmoji = "🏗️"
+		}
+
+		// Сохраняем тип в данных пользователя
+		userData := fsmManager.GetData(chatID)
+		userData.ProjectType = typeName
+		fsmManager.SetData(chatID, userData)
+
+		// Переходим к вводу названия
+		fsmManager.SetState(chatID, fsm.StateCreatingProject)
+
+		msg := tgbotapi.NewMessage(chatID,
+			fmt.Sprintf("✅ Тип: <b>%s %s</b>\n\n"+
+				"📝 Шаг 2/3: Введи название проекта:",
+				typeEmoji, typeName))
+		msg.ParseMode = "HTML"
 		bot.Send(msg)
 
 	default:

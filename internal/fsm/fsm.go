@@ -11,6 +11,7 @@ type State string
 // Константы состояний
 const (
 	StateIdle                  State = "idle"                    // Обычный режим
+	StateCreatingProjectType   State = "creating_project_type"   // Создание типа проекта
 	StateCreatingProject       State = "creating_project"        // Создание проекта: ждём название
 	StateCreatingProjectBudget State = "creating_project_budget" // Ждём бюджет
 	StateCreatingTask          State = "creating_task"           // Создание задачи
@@ -19,6 +20,7 @@ const (
 
 // UserData — данные пользователя в процессе диалога
 type UserData struct {
+	ProjectType   string
 	ProjectName   string
 	ProjectBudget string
 	TaskName      string
