@@ -65,3 +65,34 @@ func ProjectTypeKeyboard() tgbotapi.InlineKeyboardMarkup {
 		),
 	)
 }
+
+// BackButton — создаёт inline-кнопку "Назад"
+func BackButton(callbackData string) tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀️ Назад", callbackData),
+		),
+	)
+}
+
+// MastersKeyboard — inline-клавиатура выбора мастера
+func MastersKeyboard() tgbotapi.InlineKeyboardMarkup {
+	log.Println("📋 Генерация inline-клавиатуры 'Мастера'")
+
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("👷 Иванов Иван", "master_ivanov"),
+			tgbotapi.NewInlineKeyboardButtonData("👷 Петров Пётр", "master_petrov"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("👷 Сидоров Сергей", "master_sidorov"),
+			tgbotapi.NewInlineKeyboardButtonData("👷 Кузнецов Андрей", "master_kuznetsov"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ Без мастера", "master_none"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀️ Назад", "back_to_budget"),
+		),
+	)
+}

@@ -5,35 +5,37 @@ import (
 	"sync"
 )
 
-// State — тип состояния пользователя
+// State представляет состояние FSM
 type State string
 
 // Константы состояний
 const (
-	StateIdle                  State = "idle"                    // Обычный режим
-	StateCreatingProjectType   State = "creating_project_type"   // Создание типа проекта
-	StateCreatingProject       State = "creating_project"        // Создание проекта: ждём название
-	StateCreatingProjectBudget State = "creating_project_budget" // Ждём бюджет
-	StateCreatingTask          State = "creating_task"           // Создание задачи
-	StateEditingProject        State = "editing_project"         // Редактирование
+	StateIdle                  State = "idle"
+	StateCreatingProjectType   State = "creating_project_type"
+	StateCreatingProject       State = "creating_project"
+	StateCreatingProjectBudget State = "creating_project_budget"
+	StateCreatingProjectMaster State = "creating_project_master"
+	StateCreatingTask          State = "creating_task"
+	StateEditingProject        State = "editing_project"
 )
 
-// UserData — данные пользователя в процессе диалога
+// UserData хранит временные данные пользователя
 type UserData struct {
 	ProjectType   string
 	ProjectName   string
 	ProjectBudget string
+	ProjectMaster string
 	TaskName      string
 }
 
-// Manager — менеджер состояний FSM
+// Manager управляет состояниями пользователей
 type Manager struct {
 	mu     sync.RWMutex
-	states map[int64]State     // chatID -> текущее состояние
-	data   map[int64]*UserData // chatID -> временные данные
+	states map[int64]State
+	data   map[int64]*UserData
 }
 
-// NewManager — создаёт новый FSM менеджер
+// NewManager создаёт новый FSM Manager
 func NewManager() *Manager {
 	return &Manager{
 		states: make(map[int64]State),
@@ -41,19 +43,19 @@ func NewManager() *Manager {
 	}
 }
 
-// GetState — получить текущее состояние пользователя
+// GetState возвращает состояние пользователя
 func (m *Manager) GetState(chatID int64) State {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	state, exists := m.states[chatID]
 	if !exists {
-		return StateIdle // По умолчанию
+		return StateIdle
 	}
 	return state
 }
 
-// SetState — установить состояние пользователя
+// SetState устанавливает состояние пользователя
 func (m *Manager) SetState(chatID int64, state State) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -62,7 +64,29 @@ func (m *Manager) SetState(chatID int64, state State) {
 	log.Printf("🔄 FSM: Пользователь %d → состояние '%s'", chatID, state)
 }
 
-// ResetState — вернуть в обычный режим
+// GetData возвращает данные пользователя
+func (m *Manager) GetData(chatID int64) *UserData {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	data, exists := m.data[chatID]
+	if !exists {
+		data = &UserData{}
+		m.data[chatID] = data
+	}
+	return data
+}
+
+// SetData устанавливает данные пользователя
+func (m *Manager) SetData(chatID int64, data *UserData) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.data[chatID] = data
+	log.Printf("💾 FSM: Данные пользователя %d обновлены", chatID)
+}
+
+// ResetState сбрасывает состояние и данные
 func (m *Manager) ResetState(chatID int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -70,25 +94,4 @@ func (m *Manager) ResetState(chatID int64) {
 	delete(m.states, chatID)
 	delete(m.data, chatID)
 	log.Printf("🔄 FSM: Пользователь %d → сброс состояния", chatID)
-}
-
-// GetData — получить временные данные пользователя
-func (m *Manager) GetData(chatID int64) *UserData {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	data, exists := m.data[chatID]
-	if !exists {
-		return &UserData{} // Пустые данные
-	}
-	return data
-}
-
-// SetData — сохранить временные данные
-func (m *Manager) SetData(chatID int64, data *UserData) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.data[chatID] = data
-	log.Printf("💾 FSM: Данные пользователя %d обновлены", chatID)
 }

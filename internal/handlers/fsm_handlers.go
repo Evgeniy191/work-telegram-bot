@@ -5,7 +5,6 @@ import (
 	"log"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Evgeniy191/work-telegram-bot/internal/fsm"
 	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards/inline"
@@ -33,6 +32,7 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 			text,
 		))
 		msg.ParseMode = "HTML"
+		msg.ReplyMarkup = inline.BackButton("back_to_name")
 		bot.Send(msg)
 		return true
 
@@ -72,32 +72,18 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 		budgetRounded := roundToTwoDecimals(budget)
 
 		// Сохраняем как строку с форматированием
+		// Сохраняем бюджет
 		data.ProjectBudget = fmt.Sprintf("%.2f", budgetRounded)
+		fsmManager.SetData(chatID, data)
 
-		// Создаём проект
-		// Определяем эмодзи типа
-		typeEmoji := getProjectTypeEmoji(data.ProjectType)
+		// ✅ ПЕРЕХОДИМ К ВЫБОРУ МАСТЕРА
+		fsmManager.SetState(chatID, fsm.StateCreatingProjectMaster)
 
-		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
-			"🎉 <b>Проект создан!</b>\n\n"+
-				"%s <b>Тип:</b> %s\n"+
-				"📋 <b>Название:</b> %s\n"+
-				"💰 <b>Бюджет:</b> %s ₽\n"+
-				"📅 <b>Дата создания:</b> %s\n"+
-				"📍 <b>Статус:</b> В работе\n\n"+
-				"✅ Проект добавлен в список!",
-			typeEmoji,
-			data.ProjectType,
-			data.ProjectName,
-			formatMoney(budgetRounded),
-			time.Now().Format("02.01.2006"),
-		))
-
-		msg.ParseMode = "HTML"
+		msg := tgbotapi.NewMessage(chatID,
+			"✅ Бюджет сохранён!\n\n"+
+				"👷 Шаг 4/4: Назначь ответственного:")
+		msg.ReplyMarkup = inline.MastersKeyboard()
 		bot.Send(msg)
-
-		// Сбрасываем состояние
-		fsmManager.ResetState(chatID)
 		return true
 
 	case fsm.StateCreatingTask:
@@ -153,59 +139,7 @@ func StartTaskCreation(bot *tgbotapi.BotAPI, chatID int64, fsmManager *fsm.Manag
 	bot.Send(msg)
 }
 
-// formatMoney — форматирует число с разделителями тысяч
-// 500000.50 → "500 000.50"
-func formatMoney(amount float64) string {
-	// Разбиваем на целую и дробную часть
-	intPart := int(amount)
-	fracPart := amount - float64(intPart)
-
-	// Форматируем целую часть с разделителями
-	intStr := strconv.Itoa(intPart)
-	var result string
-
-	// Добавляем пробелы каждые 3 цифры справа
-	for i, char := range reverse(intStr) {
-		if i > 0 && i%3 == 0 {
-			result = " " + result
-		}
-		result = string(char) + result
-	}
-
-	// Добавляем дробную часть если есть
-	if fracPart > 0.009 { // Учитываем погрешность float
-		result += fmt.Sprintf(".%02d", int(fracPart*100+0.5))
-	}
-
-	return result
-}
-
-// reverse — переворачивает строку
-func reverse(s string) string {
-	runes := []rune(s)
-	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
-		runes[i], runes[j] = runes[j], runes[i]
-	}
-	return string(runes)
-}
-
 // roundToTwoDecimals — округляет до 2 знаков после запятой
 func roundToTwoDecimals(num float64) float64 {
 	return float64(int(num*100+0.5)) / 100
-}
-
-// getProjectTypeEmoji — возвращает эмодзи для типа проекта
-func getProjectTypeEmoji(projectType string) string {
-	switch projectType {
-	case "Монтаж":
-		return "🔧"
-	case "Ремонт":
-		return "🛠️"
-	case "Установка":
-		return "⚙️"
-	case "Строительство":
-		return "🏗️"
-	default:
-		return "📋"
-	}
 }
