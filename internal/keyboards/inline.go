@@ -1,4 +1,4 @@
-package inline
+package keyboards
 
 import (
 	"log"

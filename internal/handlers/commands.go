@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards"
 	"log"
 
-	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 

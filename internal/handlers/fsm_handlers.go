@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/Evgeniy191/work-telegram-bot/internal/fsm"
-	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards/inline"
+	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
@@ -32,7 +32,7 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 			text,
 		))
 		msg.ParseMode = "HTML"
-		msg.ReplyMarkup = inline.BackButton("back_to_name")
+		msg.ReplyMarkup = keyboards.BackButton("back_to_name")
 		bot.Send(msg)
 		return true
 
@@ -82,7 +82,7 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 		msg := tgbotapi.NewMessage(chatID,
 			"✅ Бюджет сохранён!\n\n"+
 				"👷 Шаг 4/4: Назначь ответственного:")
-		msg.ReplyMarkup = inline.MastersKeyboard()
+		msg.ReplyMarkup = keyboards.MastersKeyboard()
 		bot.Send(msg)
 		return true
 
@@ -124,7 +124,7 @@ func StartProjectCreation(bot *tgbotapi.BotAPI, chatID int64, fsmManager *fsm.Ma
 		"➕ <b>Создание нового проекта</b>\n\n"+
 			"🔧 Шаг 1/3: Выбери тип проекта:")
 	msg.ParseMode = "HTML"
-	msg.ReplyMarkup = inline.ProjectTypeKeyboard() // ← Inline-кнопки!
+	msg.ReplyMarkup = keyboards.ProjectTypeKeyboard() // ← Inline-кнопки!
 	bot.Send(msg)
 }
 

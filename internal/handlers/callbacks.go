@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/Evgeniy191/work-telegram-bot/internal/fsm"
-	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards/inline"
+	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
@@ -51,7 +51,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 
 	case "back_projects":
 		msg := tgbotapi.NewMessage(chatID, "📋 Выбери проект:")
-		msg.ReplyMarkup = inline.ProjectsList()
+		msg.ReplyMarkup = keyboards.ProjectsList()
 		bot.Send(msg)
 
 	case "confirm_yes":
@@ -95,7 +95,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 				"📝 Шаг 2/4: Введи название проекта:",
 				typeEmoji, typeName))
 		msg.ParseMode = "HTML"
-		msg.ReplyMarkup = inline.BackButton("back_to_type")
+		msg.ReplyMarkup = keyboards.BackButton("back_to_type")
 		bot.Send(msg)
 
 	case "back_to_type":
@@ -105,7 +105,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 				"➕ <b>Создание нового проекта</b>\n\n"+
 				"🔧 Шаг 1/4: Выбери тип проекта:")
 		msg.ParseMode = "HTML"
-		msg.ReplyMarkup = inline.ProjectTypeKeyboard()
+		msg.ReplyMarkup = keyboards.ProjectTypeKeyboard()
 		bot.Send(msg)
 
 	case "back_to_name":
@@ -118,7 +118,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 				"📝 Шаг 2/4: Введи название проекта:",
 				typeEmoji, userData.ProjectType))
 		msg.ParseMode = "HTML"
-		msg.ReplyMarkup = inline.BackButton("back_to_type")
+		msg.ReplyMarkup = keyboards.BackButton("back_to_type")
 		bot.Send(msg)
 
 	case "back_to_budget":
@@ -130,7 +130,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 				"💰 Шаг 3/4: Введи бюджет (в рублях):",
 				userData.ProjectName))
 		msg.ParseMode = "HTML"
-		msg.ReplyMarkup = inline.BackButton("back_to_name")
+		msg.ReplyMarkup = keyboards.BackButton("back_to_name")
 		bot.Send(msg)
 
 	case "master_ivanov", "master_petrov", "master_sidorov", "master_kuznetsov", "master_none":
@@ -225,7 +225,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 
 	case "edit_type":
 		msg := tgbotapi.NewMessage(chatID, "🔧 Выбери новый тип проекта:")
-		msg.ReplyMarkup = inline.ProjectTypeKeyboard()
+		msg.ReplyMarkup = keyboards.ProjectTypeKeyboard()
 		bot.Send(msg)
 
 	case "edit_name":
@@ -240,7 +240,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 
 	case "edit_master":
 		msg := tgbotapi.NewMessage(chatID, "👷 Выбери нового ответственного:")
-		msg.ReplyMarkup = inline.MastersKeyboard()
+		msg.ReplyMarkup = keyboards.MastersKeyboard()
 		bot.Send(msg)
 
 	case "save_project":

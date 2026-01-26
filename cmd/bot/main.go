@@ -4,9 +4,10 @@ import (
 	"log"
 	"os"
 
+	"github.com/Evgeniy191/work-telegram-bot/internal/database"
 	"github.com/Evgeniy191/work-telegram-bot/internal/fsm"
 	"github.com/Evgeniy191/work-telegram-bot/internal/handlers"
-	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards/inline"
+	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
 )
@@ -16,6 +17,12 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Println("Файл .env не найден, используем системные переменные")
 	}
+
+	// 🗄️ ИНИЦИАЛИЗАЦИЯ БД (ДОБАВЬ ЭТО)
+	if err := database.InitDB(); err != nil {
+		log.Fatalf("❌ Ошибка инициализации БД: %v", err)
+	}
+	defer database.CloseDB()
 
 	token := os.Getenv("TELEGRAM_TOKEN") // Вместо "BOT_TOKEN"
 	if token == "" {
@@ -86,7 +93,7 @@ func main() {
 			handlers.HandleAbout(bot, update)
 		case "📋 Проекты":
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "📋 Выбери проект:")
-			msg.ReplyMarkup = inline.ProjectsList()
+			msg.ReplyMarkup = keyboards.ProjectsList()
 			bot.Send(msg)
 		case "➕ Новый проект":
 			// Запускаем FSM диалог
