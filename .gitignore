@@ -20,3 +20,18 @@ vendor/
 # OS
 .DS_Store
 Thumbs.db
+
+# Локальные данные
+data/
+*.db
+
+# Секретные токены
+TOKEN.txt
+
+
+# Локальные данные
+data/
+*.db
+
+# Секретные токены
+TOKEN.txt
