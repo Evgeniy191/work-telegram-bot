@@ -7,7 +7,6 @@ import (
 	"github.com/Evgeniy191/work-telegram-bot/internal/database"
 	"github.com/Evgeniy191/work-telegram-bot/internal/fsm"
 	"github.com/Evgeniy191/work-telegram-bot/internal/handlers"
-	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
 )
@@ -92,9 +91,9 @@ func main() {
 		case "/about":
 			handlers.HandleAbout(bot, update)
 		case "📋 Проекты":
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "📋 Выбери проект:")
-			msg.ReplyMarkup = keyboards.ProjectsList()
-			bot.Send(msg)
+			handlers.HandleMyProjects(bot, update)
+		case "/myprojects":
+			handlers.HandleMyProjects(bot, update)
 		case "➕ Новый проект":
 			// Запускаем FSM диалог
 			handlers.StartProjectCreation(bot, update.Message.Chat.ID, fsmManager)
@@ -114,8 +113,6 @@ func main() {
 			// В блоке switch добавь:
 		case "⚡ Быстрые действия":
 			handlers.HandleQuickActions(bot, update)
-		case "📋 Мои проекты":
-			handlers.HandleMyProjects(bot, update)
 		case "📝 Мои задачи":
 			handlers.HandleMyTasks(bot, update)
 		case "🌍 Язык":

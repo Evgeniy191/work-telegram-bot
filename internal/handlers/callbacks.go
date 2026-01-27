@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Evgeniy191/work-telegram-bot/internal/database"
 	"github.com/Evgeniy191/work-telegram-bot/internal/fsm"
 	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -152,8 +153,27 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		userData.ProjectMaster = masterName
 		fsmManager.SetData(chatID, userData) // ✅ ДОБАВИЛ СОХРАНЕНИЕ!
 
-		typeEmoji := getProjectTypeEmoji(userData.ProjectType)
+		// СОХРАНЕНИЕ В БАЗУ ДАННЫХ
 		budget, _ := strconv.ParseFloat(userData.ProjectBudget, 64)
+		projectID, err := database.CreateProject(
+			chatID,               // userID
+			userData.ProjectType, // тип
+			userData.ProjectName, // название
+			budget,               // бюджет
+			masterName,           // мастер
+		)
+
+		if err != nil {
+			log.Printf("❌ Ошибка сохранения проекта: %v", err)
+			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка сохранения проекта в БД")
+			bot.Send(msg)
+			return
+		}
+
+		log.Printf("✅ Проект ID=%d сохранён в БД", projectID)
+
+		typeEmoji := getProjectTypeEmoji(userData.ProjectType)
+		budget, _ = strconv.ParseFloat(userData.ProjectBudget, 64)
 
 		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
 			"🎉 <b>Проект создан!</b>\n\n"+

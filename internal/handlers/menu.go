@@ -139,22 +139,6 @@ func HandleNewTask(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	}
 }
 
-// HandleMyProjects обрабатывает "📋 Мои проекты"
-func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	msg := tgbotapi.NewMessage(
-		update.Message.Chat.ID,
-		"📋 Мои проекты\n\n"+
-			"🔄 Загрузка...\n\n"+
-			"(Список проектов пока пуст)\n\n"+
-			"🔜 Будут проекты из БД",
-	)
-	msg.ReplyMarkup = keyboards.BackToMainMenu()
-
-	if _, err := bot.Send(msg); err != nil {
-		log.Println("Ошибка отправки сообщения:", err)
-	}
-}
-
 // HandleMyTasks обрабатывает "📝 Мои задачи"
 func HandleMyTasks(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	msg := tgbotapi.NewMessage(
