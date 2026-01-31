@@ -17,13 +17,14 @@ type Project struct {
 
 // Task — модель задачи
 type Task struct {
-	ID         int64      `json:"id"`
-	ProjectID  int64      `json:"project_id"`
-	Name       string     `json:"name"`
-	Deadline   *time.Time `json:"deadline"`    // Указатель (может быть NULL)
-	AssigneeID *int64     `json:"assignee_id"` // Указатель (может быть NULL)
-	Status     string     `json:"status"`
-	CreatedAt  time.Time  `json:"created_at"`
+	ID          int64      `json:"id"`
+	ProjectID   int64      `json:"project_id"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	Status      string     `json:"status"`
+	Deadline    *time.Time `json:"deadline,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 // Master — модель мастера

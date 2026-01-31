@@ -75,11 +75,10 @@ func HandleAbout(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	}
 }
 
-// HandleMyProjects показывает все проекты пользователя
+// HandleMyProjects показывает все проекты пользователя с кнопками управления
 func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	chatID := update.Message.Chat.ID
 
-	// Получаем проекты из БД
 	projects, err := database.GetUserProjects(chatID)
 
 	if err != nil {
@@ -97,30 +96,48 @@ func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 		return
 	}
 
-	// Формируем список проектов
-	text := fmt.Sprintf("📋 *Твои проекты (%d)*\n\n", len(projects))
-
+	// Отправляем каждый проект отдельным сообщением с кнопками
 	for i, p := range projects {
 		masterName := database.GetMasterNameByID(p.MasterID)
 
-		text += fmt.Sprintf(
-			"*%d. %s*\n"+
+		// Получаем статистику задач
+		total, pending, inProgress, completed, _ := database.CountProjectTasks(p.ID)
+
+		text := fmt.Sprintf(
+			"📋 *Проект %d из %d*\n\n"+
+				"*%s*\n"+
 				"🔧 Тип: %s\n"+
 				"💰 Бюджет: %.2f ₽\n"+
 				"👷 Мастер: %s\n"+
 				"📍 Статус: %s\n"+
-				"📅 Создан: %s\n\n",
+				"📅 Создан: %s\n\n"+
+				"📝 Задачи: %d (🕐 %d | ⚙️ %d | ✅ %d)",
 			i+1,
+			len(projects),
 			p.Name,
 			p.Type,
 			p.Budget,
 			masterName,
 			p.Status,
 			p.CreatedAt.Format("02.01.2006"),
+			total, pending, inProgress, completed,
 		)
-	}
 
-	msg := tgbotapi.NewMessage(chatID, text)
-	msg.ParseMode = "Markdown"
-	bot.Send(msg)
+		// Создаём inline-кнопки
+		buttons := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("📝 Задачи", fmt.Sprintf("view_tasks_%d", p.ID)),
+				tgbotapi.NewInlineKeyboardButtonData("➕ Добавить задачу", fmt.Sprintf("add_task_%d", p.ID)),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("✏️ Изменить", fmt.Sprintf("edit_project_%d", p.ID)),
+				tgbotapi.NewInlineKeyboardButtonData("🗑️ Удалить", fmt.Sprintf("delete_project_%d", p.ID)),
+			),
+		)
+
+		msg := tgbotapi.NewMessage(chatID, text)
+		msg.ParseMode = "Markdown"
+		msg.ReplyMarkup = buttons
+		bot.Send(msg)
+	}
 }

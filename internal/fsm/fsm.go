@@ -10,22 +10,29 @@ type State string
 
 // Константы состояний
 const (
-	StateIdle                  State = "idle"
-	StateCreatingProjectType   State = "creating_project_type"
-	StateCreatingProject       State = "creating_project"
-	StateCreatingProjectBudget State = "creating_project_budget"
-	StateCreatingProjectMaster State = "creating_project_master"
-	StateCreatingTask          State = "creating_task"
-	StateEditingProject        State = "editing_project"
+	StateIdle                    State = "idle"
+	StateCreatingProjectType     State = "creating_project_type"
+	StateCreatingProject         State = "creating_project"
+	StateCreatingProjectBudget   State = "creating_project_budget"
+	StateCreatingProjectMaster   State = "creating_project_master"
+	StateCreatingTask            State = "creating_task"
+	StateEditingProject          State = "editing_project"
+	StateEditingProjectName      State = "editing_project_name"
+	StateEditingProjectBudget    State = "editing_project_budget"
+	StateCreatingTaskName        State = "creating_task_name"
+	StateCreatingTaskDescription State = "creating_task_description"
 )
 
 // UserData хранит временные данные пользователя
 type UserData struct {
-	ProjectType   string
-	ProjectName   string
-	ProjectBudget string
-	ProjectMaster string
-	TaskName      string
+	ProjectType      string
+	ProjectName      string
+	ProjectBudget    string
+	ProjectMaster    string
+	TaskName         string
+	EditingProjectID int64
+	TaskProjectID    int64
+	TaskDescription  string
 }
 
 // Manager управляет состояниями пользователей

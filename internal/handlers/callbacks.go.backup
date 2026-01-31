@@ -23,63 +23,62 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 	callbackConfig := tgbotapi.NewCallback(callback.ID, "")
 	bot.Request(callbackConfig)
 
-	switch {
-	case data == "project_1":
+	switch data {
+	case "project_1":
 		msg := tgbotapi.NewMessage(chatID, "📋 Проект 1: Монтаж труб")
 		bot.Send(msg)
 
-	case data == "project_2":
+	case "project_2":
 		msg := tgbotapi.NewMessage(chatID, "📋 Проект 2: Оборудование Б")
 		bot.Send(msg)
 
-	case data == "project_3":
+	case "project_3":
 		msg := tgbotapi.NewMessage(chatID, "📋 Проект 3: Монтаж м/к")
 		bot.Send(msg)
 
-	case data == "project_new":
+	case "project_new":
 		StartProjectCreation(bot, chatID, fsmManager)
 
-	case data == "task_docs":
+	case "task_docs":
 		msg := tgbotapi.NewMessage(chatID, "📄 Задача: Оформить документы")
 		bot.Send(msg)
 
-	case data == "task_materials":
+	case "task_materials":
 		msg := tgbotapi.NewMessage(chatID, "📦 Задача: Заказать материалы")
 		bot.Send(msg)
 
-	case data == "task_report":
+	case "task_report":
 		msg := tgbotapi.NewMessage(chatID, "📊 Задача: Сдать отчёт")
 		bot.Send(msg)
 
-	case data == "back_projects":
+	case "back_projects":
 		msg := tgbotapi.NewMessage(chatID, "📋 Выбери проект:")
 		msg.ReplyMarkup = keyboards.ProjectsList()
 		bot.Send(msg)
 
-	case data == "confirm_yes":
+	case "confirm_yes":
 		msg := tgbotapi.NewMessage(chatID, "✅ Действие подтверждено!")
 		bot.Send(msg)
 
-	case data == "confirm_no":
+	case "confirm_no":
 		msg := tgbotapi.NewMessage(chatID, "❌ Действие отменено.")
 		bot.Send(msg)
 
-	// ИСПРАВЛЕНО: используем || вместо запятых
-	case data == "type_montazh" || data == "type_remont" || data == "type_ustanovka" || data == "type_stroitelstvo":
+	case "type_montazh", "type_remont", "type_ustanovka", "type_stroitelstvo":
 		var typeName string
 		var typeEmoji string
 
-		switch {
-		case data == "type_montazh":
+		switch data {
+		case "type_montazh":
 			typeName = "Монтаж"
 			typeEmoji = "🔧"
-		case data == "type_remont":
+		case "type_remont":
 			typeName = "Ремонт"
 			typeEmoji = "🛠️"
-		case data == "type_ustanovka":
+		case "type_ustanovka":
 			typeName = "Установка"
 			typeEmoji = "⚙️"
-		case data == "type_stroitelstvo":
+		case "type_stroitelstvo":
 			typeName = "Строительство"
 			typeEmoji = "🏗️"
 		}
@@ -87,85 +86,82 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		userData := fsmManager.GetData(chatID)
 		userData.ProjectType = typeName
 		fsmManager.SetData(chatID, userData)
+
 		fsmManager.SetState(chatID, fsm.StateCreatingProject)
 
 		log.Printf("✅ CALLBACK: Установлено состояние=%s, тип=%s для chatID=%d",
 			fsmManager.GetState(chatID), typeName, chatID)
 
 		msg := tgbotapi.NewMessage(chatID,
-			fmt.Sprintf("✅ Тип: %s %s\n\n"+
+			fmt.Sprintf("✅ Тип: <b>%s %s</b>\n\n"+
 				"📝 Шаг 2/4: Введи название проекта:",
 				typeEmoji, typeName))
 		msg.ParseMode = "HTML"
 		msg.ReplyMarkup = keyboards.BackButton("back_to_type")
 		bot.Send(msg)
 
-	case data == "back_to_type":
+	case "back_to_type":
 		fsmManager.SetState(chatID, fsm.StateCreatingProjectType)
 		msg := tgbotapi.NewMessage(chatID,
 			"◀️ Возврат назад\n\n"+
-				"➕ Создание нового проекта\n\n"+
+				"➕ <b>Создание нового проекта</b>\n\n"+
 				"🔧 Шаг 1/4: Выбери тип проекта:")
 		msg.ParseMode = "HTML"
 		msg.ReplyMarkup = keyboards.ProjectTypeKeyboard()
 		bot.Send(msg)
 
-	case data == "back_to_name":
+	case "back_to_name":
 		userData := fsmManager.GetData(chatID)
 		fsmManager.SetState(chatID, fsm.StateCreatingProject)
 		typeEmoji := getProjectTypeEmoji(userData.ProjectType)
-
 		msg := tgbotapi.NewMessage(chatID,
 			fmt.Sprintf("◀️ Возврат назад\n\n"+
-				"✅ Тип: %s %s\n\n"+
+				"✅ Тип: <b>%s %s</b>\n\n"+
 				"📝 Шаг 2/4: Введи название проекта:",
 				typeEmoji, userData.ProjectType))
 		msg.ParseMode = "HTML"
 		msg.ReplyMarkup = keyboards.BackButton("back_to_type")
 		bot.Send(msg)
 
-	case data == "back_to_budget":
+	case "back_to_budget":
 		userData := fsmManager.GetData(chatID)
 		fsmManager.SetState(chatID, fsm.StateCreatingProjectBudget)
-
 		msg := tgbotapi.NewMessage(chatID,
 			fmt.Sprintf("◀️ Возврат назад\n\n"+
-				"✅ Название: %s\n\n"+
+				"✅ Название: <b>%s</b>\n\n"+
 				"💰 Шаг 3/4: Введи бюджет (в рублях):",
 				userData.ProjectName))
 		msg.ParseMode = "HTML"
 		msg.ReplyMarkup = keyboards.BackButton("back_to_name")
 		bot.Send(msg)
 
-	// ИСПРАВЛЕНО: используем || вместо запятых
-	case data == "master_ivanov" || data == "master_petrov" || data == "master_sidorov" || data == "master_kuznetsov" || data == "master_none":
+	case "master_ivanov", "master_petrov", "master_sidorov", "master_kuznetsov", "master_none":
 		var masterName string
-
-		switch {
-		case data == "master_ivanov":
+		switch data {
+		case "master_ivanov":
 			masterName = "Иванов Иван"
-		case data == "master_petrov":
+		case "master_petrov":
 			masterName = "Петров Пётр"
-		case data == "master_sidorov":
+		case "master_sidorov":
 			masterName = "Сидоров Сергей"
-		case data == "master_kuznetsov":
+		case "master_kuznetsov":
 			masterName = "Кузнецов Андрей"
-		case data == "master_none":
+		case "master_none":
 			masterName = "Не назначен"
 		}
 
 		userData := fsmManager.GetData(chatID)
 		userData.ProjectMaster = masterName
-		fsmManager.SetData(chatID, userData)
+		fsmManager.SetData(chatID, userData) // ✅ ДОБАВИЛ СОХРАНЕНИЕ!
 
 		// СОХРАНЕНИЕ В БАЗУ ДАННЫХ
 		budget, _ := strconv.ParseFloat(userData.ProjectBudget, 64)
 		projectID, err := database.CreateProject(
-			chatID,
-			userData.ProjectType,
-			userData.ProjectName,
-			budget,
-			masterName,
+			chatID,               // userID
+			userData.ProjectType, // тип
+			userData.ProjectName, // название
+			budget,               // бюджет
+			masterName,           // мастер
 		)
 
 		if err != nil {
@@ -181,13 +177,13 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		budget, _ = strconv.ParseFloat(userData.ProjectBudget, 64)
 
 		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
-			"🎉 Проект создан!\n\n"+
-				"%s Тип: %s\n"+
-				"📋 Название: %s\n"+
-				"💰 Бюджет: %s ₽\n"+
-				"👷 Ответственный: %s\n"+
-				"📅 Дата создания: %s\n"+
-				"📍 Статус: В работе\n\n"+
+			"🎉 <b>Проект создан!</b>\n\n"+
+				"%s <b>Тип:</b> %s\n"+
+				"📋 <b>Название:</b> %s\n"+
+				"💰 <b>Бюджет:</b> %s ₽\n"+
+				"👷 <b>Ответственный:</b> %s\n"+
+				"📅 <b>Дата создания:</b> %s\n"+
+				"📍 <b>Статус:</b> В работе\n\n"+
 				"✅ Проект добавлен в список!",
 			typeEmoji,
 			userData.ProjectType,
@@ -204,8 +200,9 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			),
 		)
 		bot.Send(msg)
+		// НЕ сбрасываем данные! Нужны для редактирования
 
-	case data == "edit_last_project":
+	case "edit_last_project":
 		userData := fsmManager.GetData(chatID)
 		if userData.ProjectName == "" {
 			msg := tgbotapi.NewMessage(chatID, "❌ Нет данных проекта для редактирования.")
@@ -217,12 +214,12 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		budget, _ := strconv.ParseFloat(userData.ProjectBudget, 64)
 
 		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
-			"✏️ Редактирование проекта\n\n"+
+			"✏️ <b>Редактирование проекта</b>\n\n"+
 				"Текущие данные:\n"+
-				"%s Тип: %s\n"+
-				"📋 Название: %s\n"+
-				"💰 Бюджет: %s ₽\n"+
-				"👷 Ответственный: %s\n\n"+
+				"%s <b>Тип:</b> %s\n"+
+				"📋 <b>Название:</b> %s\n"+
+				"💰 <b>Бюджет:</b> %s ₽\n"+
+				"👷 <b>Ответственный:</b> %s\n\n"+
 				"Что изменить?",
 			typeEmoji,
 			userData.ProjectType,
@@ -247,14 +244,17 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		)
 		bot.Send(msg)
 
-	// Редактирование названия
+		// Редактирование названия
 	case strings.HasPrefix(data, "edit_name_"):
 		projectIDStr := strings.TrimPrefix(data, "edit_name_")
 		projectID, _ := strconv.ParseInt(projectIDStr, 10, 64)
 
+		// Сохраняем ID проекта в FSM
 		userData := fsmManager.GetData(chatID)
 		userData.EditingProjectID = projectID
 		fsmManager.SetData(chatID, userData)
+
+		// Устанавливаем состояние
 		fsmManager.SetState(chatID, fsm.StateEditingProjectName)
 
 		msg := tgbotapi.NewMessage(chatID,
@@ -271,6 +271,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		userData := fsmManager.GetData(chatID)
 		userData.EditingProjectID = projectID
 		fsmManager.SetData(chatID, userData)
+
 		fsmManager.SetState(chatID, fsm.StateEditingProjectBudget)
 
 		msg := tgbotapi.NewMessage(chatID,
@@ -294,28 +295,29 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		msg.ReplyMarkup = keyboards.MastersKeyboard()
 		bot.Send(msg)
 
-	case data == "edit_type":
+	case "edit_type":
 		msg := tgbotapi.NewMessage(chatID, "🔧 Выбери новый тип проекта:")
 		msg.ReplyMarkup = keyboards.ProjectTypeKeyboard()
 		bot.Send(msg)
 
-	case data == "edit_name":
+	case "edit_name":
 		fsmManager.SetState(chatID, fsm.StateCreatingProject)
 		msg := tgbotapi.NewMessage(chatID, "📋 Введи новое название проекта:")
 		bot.Send(msg)
 
-	case data == "edit_budget":
+	case "edit_budget":
 		fsmManager.SetState(chatID, fsm.StateCreatingProjectBudget)
 		msg := tgbotapi.NewMessage(chatID, "💰 Введи новый бюджет:")
 		bot.Send(msg)
 
-	case data == "edit_master":
+	case "edit_master":
 		msg := tgbotapi.NewMessage(chatID, "👷 Выбери нового ответственного:")
 		msg.ReplyMarkup = keyboards.MastersKeyboard()
 		bot.Send(msg)
 
-	case data == "save_project":
+	case "save_project":
 		userData := fsmManager.GetData(chatID)
+
 		log.Printf("📝 SAVE: Тип=%s, Название=%s, Бюджет=%s, Мастер=%s",
 			userData.ProjectType,
 			userData.ProjectName,
@@ -326,12 +328,12 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		budget, _ := strconv.ParseFloat(userData.ProjectBudget, 64)
 
 		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
-			"✅ Проект сохранён!\n\n"+
-				"%s Тип: %s\n"+
-				"📋 Название: %s\n"+
-				"💰 Бюджет: %s ₽\n"+
-				"👷 Ответственный: %s\n"+
-				"📅 Обновлён: %s",
+			"✅ <b>Проект сохранён!</b>\n\n"+
+				"%s <b>Тип:</b> %s\n"+
+				"📋 <b>Название:</b> %s\n"+
+				"💰 <b>Бюджет:</b> %s ₽\n"+
+				"👷 <b>Ответственный:</b> %s\n"+
+				"📅 <b>Обновлён:</b> %s",
 			typeEmoji,
 			userData.ProjectType,
 			userData.ProjectName,
@@ -343,13 +345,14 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		bot.Send(msg)
 		fsmManager.ResetState(chatID)
 
-	case data == "back_menu":
+	case "back_menu":
 		msg := tgbotapi.NewMessage(chatID, "◀️ Возврат в главное меню")
 		bot.Send(msg)
 		fsmManager.ResetState(chatID)
 
-	// Редактирование проекта
+		// Редактирование проекта
 	case strings.HasPrefix(data, "edit_project_"):
+		// Извлекаем ID проекта из callback_data
 		projectIDStr := strings.TrimPrefix(data, "edit_project_")
 		projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
 
@@ -359,6 +362,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			return
 		}
 
+		// Получаем проект из БД
 		project, err := database.GetProjectByID(projectID)
 
 		if err != nil {
@@ -369,6 +373,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 
 		masterName := database.GetMasterNameByID(project.MasterID)
 
+		// Показываем меню редактирования
 		text := fmt.Sprintf(
 			"✏️ *Редактирование проекта*\n\n"+
 				"*%s*\n\n"+
@@ -412,6 +417,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			return
 		}
 
+		// Получаем проект для отображения названия
 		project, err := database.GetProjectByID(projectID)
 
 		if err != nil {
@@ -420,6 +426,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			return
 		}
 
+		// Запрашиваем подтверждение
 		text := fmt.Sprintf(
 			"⚠️ *Подтверждение удаления*\n\n"+
 				"Точно удалить проект?\n\n"+
@@ -453,6 +460,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			return
 		}
 
+		// Удаляем проект из БД
 		err = database.DeleteProject(projectID)
 
 		if err != nil {
@@ -468,198 +476,8 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		bot.Send(msg)
 
 	// Возврат к списку проектов
-	case data == "back_to_projects":
+	case "back_to_projects":
 		msg := tgbotapi.NewMessage(chatID, "Используй /myprojects для просмотра проектов")
-		bot.Send(msg)
-
-		// Просмотр задач проекта
-	case strings.HasPrefix(data, "view_tasks_"):
-		projectIDStr := strings.TrimPrefix(data, "view_tasks_")
-		projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
-
-		if err != nil {
-			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка: неверный ID проекта")
-			bot.Send(msg)
-			return
-		}
-
-		project, err := database.GetProjectByID(projectID)
-		if err != nil {
-			msg := tgbotapi.NewMessage(chatID, "❌ Проект не найден")
-			bot.Send(msg)
-			return
-		}
-
-		tasks, err := database.GetProjectTasks(projectID)
-		if err != nil {
-			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка загрузки задач")
-			bot.Send(msg)
-			return
-		}
-
-		if len(tasks) == 0 {
-			text := fmt.Sprintf(
-				"📝 *Задачи проекта*\n\n"+
-					"*%s*\n\n"+
-					"📋 Пока нет задач\n\n"+
-					"➕ Добавь первую задачу!",
-				project.Name,
-			)
-
-			buttons := tgbotapi.NewInlineKeyboardMarkup(
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonData("➕ Добавить задачу", fmt.Sprintf("add_task_%d", projectID)),
-					tgbotapi.NewInlineKeyboardButtonData("◀️ Назад", "back_to_projects"),
-				),
-			)
-
-			msg := tgbotapi.NewMessage(chatID, text)
-			msg.ParseMode = "Markdown"
-			msg.ReplyMarkup = buttons
-			bot.Send(msg)
-			return
-		}
-
-		// Отправляем каждую задачу отдельным сообщением с кнопками
-		for i, task := range tasks {
-			statusEmoji := database.GetTaskStatusEmoji(task.Status)
-			statusName := database.GetTaskStatusName(task.Status)
-
-			deadlineText := "Не указан"
-			if task.Deadline != nil {
-				deadlineText = task.Deadline.Format("02.01.2006")
-			}
-
-			text := fmt.Sprintf(
-				"📝 *Задача %d из %d*\n\n"+
-					"*%s* %s\n\n"+
-					"📄 %s\n"+
-					"📅 Дедлайн: %s\n"+
-					"⏱ Статус: %s",
-				i+1, len(tasks),
-				task.Name, statusEmoji,
-				task.Description,
-				deadlineText,
-				statusName,
-			)
-
-			// Кнопки в зависимости от статуса
-			var statusButtons []tgbotapi.InlineKeyboardButton
-
-			switch task.Status {
-			case "pending":
-				statusButtons = []tgbotapi.InlineKeyboardButton{
-					tgbotapi.NewInlineKeyboardButtonData("▶️ Начать", fmt.Sprintf("task_status_%d_in_progress", task.ID)),
-					tgbotapi.NewInlineKeyboardButtonData("✅ Завершить", fmt.Sprintf("task_status_%d_completed", task.ID)),
-				}
-			case "in_progress":
-				statusButtons = []tgbotapi.InlineKeyboardButton{
-					tgbotapi.NewInlineKeyboardButtonData("⏸ В ожидание", fmt.Sprintf("task_status_%d_pending", task.ID)),
-					tgbotapi.NewInlineKeyboardButtonData("✅ Завершить", fmt.Sprintf("task_status_%d_completed", task.ID)),
-				}
-			case "completed":
-				statusButtons = []tgbotapi.InlineKeyboardButton{
-					tgbotapi.NewInlineKeyboardButtonData("🔄 Вернуть", fmt.Sprintf("task_status_%d_pending", task.ID)),
-				}
-			}
-
-			buttons := tgbotapi.NewInlineKeyboardMarkup(
-				statusButtons,
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonData("🗑️ Удалить", fmt.Sprintf("delete_task_%d", task.ID)),
-				),
-			)
-
-			msg := tgbotapi.NewMessage(chatID, text)
-			msg.ParseMode = "Markdown"
-			msg.ReplyMarkup = buttons
-			bot.Send(msg)
-		}
-
-		// Кнопки после списка задач
-		finalButtons := tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("➕ Добавить задачу", fmt.Sprintf("add_task_%d", projectID)),
-				tgbotapi.NewInlineKeyboardButtonData("◀️ Назад", "back_to_projects"),
-			),
-		)
-
-		finalMsg := tgbotapi.NewMessage(chatID, "───────────────")
-		finalMsg.ReplyMarkup = finalButtons
-		bot.Send(finalMsg)
-
-	// Создание задачи
-	case strings.HasPrefix(data, "add_task_"):
-		projectIDStr := strings.TrimPrefix(data, "add_task_")
-		projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
-
-		if err != nil {
-			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка: неверный ID проекта")
-			bot.Send(msg)
-			return
-		}
-
-		userData := fsmManager.GetData(chatID)
-		userData.TaskProjectID = projectID
-		fsmManager.SetData(chatID, userData)
-		fsmManager.SetState(chatID, fsm.StateCreatingTaskName)
-
-		msg := tgbotapi.NewMessage(chatID,
-			"➕ *Новая задача*\n\n"+
-				"📝 Введи название задачи:")
-		msg.ParseMode = "Markdown"
-		bot.Send(msg)
-
-		// Изменение статуса задачи
-	case strings.HasPrefix(data, "task_status_"):
-		// Формат: task_status_{ID}_{STATUS}
-		// Статус может содержать underscore (in_progress)
-		rest := strings.TrimPrefix(data, "task_status_")
-
-		// Ищем первый underscore - это разделитель ID и статуса
-		parts := strings.SplitN(rest, "_", 2)
-		if len(parts) < 2 {
-			msg := tgbotapi.NewMessage(chatID, "❌ Неверный формат callback")
-			bot.Send(msg)
-			return
-		}
-
-		taskID, err := strconv.ParseInt(parts[0], 10, 64)
-		if err != nil {
-			msg := tgbotapi.NewMessage(chatID, "❌ Неверный ID задачи")
-			bot.Send(msg)
-			return
-		}
-
-		newStatus := parts[1] // "in_progress", "pending", "completed"
-
-		err = database.UpdateTaskStatus(taskID, newStatus)
-		if err != nil {
-			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("❌ Ошибка: %v", err))
-			bot.Send(msg)
-			return
-		}
-
-		statusEmoji := database.GetTaskStatusEmoji(newStatus)
-		statusName := database.GetTaskStatusName(newStatus)
-
-		msg := tgbotapi.NewMessage(chatID,
-			fmt.Sprintf("✅ Статус изменён: %s %s", statusEmoji, statusName))
-		bot.Send(msg)
-
-	// Удаление задачи
-	case strings.HasPrefix(data, "delete_task_"):
-		taskIDStr := strings.TrimPrefix(data, "delete_task_")
-		taskID, _ := strconv.ParseInt(taskIDStr, 10, 64)
-
-		err := database.DeleteTask(taskID)
-		if err != nil {
-			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка удаления задачи")
-			bot.Send(msg)
-			return
-		}
-
-		msg := tgbotapi.NewMessage(chatID, "✅ Задача удалена")
 		bot.Send(msg)
 
 	default:
@@ -669,7 +487,6 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 	}
 }
 
-// ИСПРАВЛЕНО: убрал "data ==" из case
 func getProjectTypeEmoji(projectType string) string {
 	switch projectType {
 	case "Монтаж":

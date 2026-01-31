@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Evgeniy191/work-telegram-bot/internal/database"
 	"github.com/Evgeniy191/work-telegram-bot/internal/fsm"
 	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -107,6 +108,146 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 	case fsm.StateIdle:
 		// Обычный режим — не обрабатываем здесь
 		return false
+
+		// Редактирование названия проекта
+	case fsm.StateEditingProjectName:
+		data := fsmManager.GetData(chatID)
+		newName := strings.TrimSpace(text)
+
+		if newName == "" {
+			msg := tgbotapi.NewMessage(chatID, "❌ Название не может быть пустым. Попробуй ещё раз:")
+			bot.Send(msg)
+			return true
+		}
+
+		// Получаем текущий проект
+		project, err := database.GetProjectByID(data.EditingProjectID)
+		if err != nil {
+			msg := tgbotapi.NewMessage(chatID, "❌ Проект не найден")
+			bot.Send(msg)
+			fsmManager.ResetState(chatID)
+			return true
+		}
+
+		// Обновляем проект
+		masterName := database.GetMasterNameByID(project.MasterID)
+		err = database.UpdateProject(data.EditingProjectID, newName, project.Budget, masterName)
+
+		if err != nil {
+			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка обновления проекта")
+			bot.Send(msg)
+			fsmManager.ResetState(chatID)
+			return true
+		}
+
+		msg := tgbotapi.NewMessage(chatID,
+			fmt.Sprintf("✅ *Название обновлено*\n\n"+
+				"Новое название: *%s*", newName))
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+
+		fsmManager.ResetState(chatID)
+		return true
+
+	// Редактирование бюджета проекта
+	case fsm.StateEditingProjectBudget:
+		data := fsmManager.GetData(chatID)
+		cleanText := strings.TrimSpace(text)
+
+		// Валидация числа
+		budget, err := strconv.ParseFloat(cleanText, 64)
+		if err != nil || budget < 0 {
+			msg := tgbotapi.NewMessage(chatID,
+				"❌ Ошибка!\n\n"+
+					"Бюджет должен быть положительным числом.\n"+
+					"Примеры: 500000 или 12500.50\n\n"+
+					"💡 Попробуй ещё раз:")
+			bot.Send(msg)
+			return true
+		}
+
+		// Получаем текущий проект
+		project, err := database.GetProjectByID(data.EditingProjectID)
+		if err != nil {
+			msg := tgbotapi.NewMessage(chatID, "❌ Проект не найден")
+			bot.Send(msg)
+			fsmManager.ResetState(chatID)
+			return true
+		}
+
+		// Обновляем проект
+		masterName := database.GetMasterNameByID(project.MasterID)
+		err = database.UpdateProject(data.EditingProjectID, project.Name, budget, masterName)
+
+		if err != nil {
+			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка обновления проекта")
+			bot.Send(msg)
+			fsmManager.ResetState(chatID)
+			return true
+		}
+
+		msg := tgbotapi.NewMessage(chatID,
+			fmt.Sprintf("✅ *Бюджет обновлён*\n\n"+
+				"Новый бюджет: *%.2f ₽*", budget))
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+
+		fsmManager.ResetState(chatID)
+		return true
+	case fsm.StateCreatingTaskName:
+		data := fsmManager.GetData(chatID)
+		taskName := strings.TrimSpace(text)
+
+		if taskName == "" {
+			msg := tgbotapi.NewMessage(chatID, "❌ Название не может быть пустым")
+			bot.Send(msg)
+			return true
+		}
+
+		data.TaskName = taskName
+		fsmManager.SetData(chatID, data)
+		fsmManager.SetState(chatID, fsm.StateCreatingTaskDescription)
+
+		msg := tgbotapi.NewMessage(chatID,
+			fmt.Sprintf("📝 *Название:* %s\n\n"+
+				"📄 Введи описание задачи (или /skip для пропуска):", taskName))
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+		return true
+
+	case fsm.StateCreatingTaskDescription:
+		data := fsmManager.GetData(chatID)
+		taskDesc := strings.TrimSpace(text)
+
+		// Пропуск описания
+		if text == "/skip" {
+			taskDesc = ""
+		}
+
+		data.TaskDescription = taskDesc
+		fsmManager.SetData(chatID, data)
+
+		// Создаём задачу
+		taskID, err := database.CreateTask(data.TaskProjectID, data.TaskName, data.TaskDescription, nil)
+
+		if err != nil {
+			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка создания задачи")
+			bot.Send(msg)
+			fsmManager.ResetState(chatID)
+			return true
+		}
+
+		msg := tgbotapi.NewMessage(chatID,
+			fmt.Sprintf("✅ *Задача создана!*\n\n"+
+				"📝 %s\n"+
+				"📄 %s\n"+
+				"🕐 Статус: Ожидает\n\n"+
+				"ID: %d", data.TaskName, data.TaskDescription, taskID))
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+
+		fsmManager.ResetState(chatID)
+		return true
 
 	default:
 		// Неизвестное состояние
