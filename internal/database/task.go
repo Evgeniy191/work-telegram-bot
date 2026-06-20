@@ -292,6 +292,20 @@ func IsTaskOverdue(t Task) bool {
 	return t.Status != "completed" && t.Deadline != nil && t.Deadline.Before(time.Now())
 }
 
+// CountProjectOverdue — число просроченных (невыполненных с истёкшим сроком) задач проекта.
+func CountProjectOverdue(projectID int64) (int, error) {
+	var n int
+	err := DB.QueryRow(`
+		SELECT COUNT(*)
+		FROM tasks
+		WHERE project_id = ?
+			AND status <> 'completed'
+			AND deadline IS NOT NULL
+			AND deadline < datetime('now')
+	`, projectID).Scan(&n)
+	return n, err
+}
+
 // UpdateTaskName — обновляет только название задачи
 func UpdateTaskName(taskID int64, name string) error {
 	_, err := DB.Exec("UPDATE tasks SET name = ?, updated_at = datetime('now') WHERE id = ?", name, taskID)

@@ -103,6 +103,12 @@ func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 		// Получаем статистику задач и прогресс проекта
 		total, pending, inProgress, completed, _ := database.CountProjectTasks(p.ID)
 		progress := database.CalcProgress(total, completed)
+		overdue, _ := database.CountProjectOverdue(p.ID)
+
+		overdueLine := ""
+		if overdue > 0 {
+			overdueLine = fmt.Sprintf("\n🔴 Просрочено задач: %d", overdue)
+		}
 
 		text := fmt.Sprintf(
 			"📋 *Проект %d из %d*\n\n"+
@@ -113,7 +119,7 @@ func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 				"📍 Статус: %s\n"+
 				"📅 Создан: %s\n\n"+
 				"📝 Задачи: %d (🕐 %d | ⚙️ %d | ✅ %d)\n"+
-				"📊 Прогресс: %s %d%%",
+				"📊 Прогресс: %s %d%%%s",
 			i+1,
 			len(projects),
 			p.Name,
@@ -124,6 +130,7 @@ func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 			p.CreatedAt.Format("02.01.2006"),
 			total, pending, inProgress, completed,
 			progressBar(progress), progress,
+			overdueLine,
 		)
 
 		// Создаём inline-кнопки

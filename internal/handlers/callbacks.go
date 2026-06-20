@@ -587,6 +587,9 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			deadlineText := "Не указан"
 			if task.Deadline != nil {
 				deadlineText = task.Deadline.Format("02.01.2006")
+				if database.IsTaskOverdue(task) {
+					deadlineText += " 🔴 ПРОСРОЧЕНО"
+				}
 			}
 
 			text := fmt.Sprintf(
