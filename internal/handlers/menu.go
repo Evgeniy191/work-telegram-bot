@@ -274,17 +274,19 @@ func HandleTheme(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	}
 }
 
-// HandleSecurity обрабатывает "🔐 Безопасность"
+// HandleSecurity обрабатывает "🔐 Безопасность" — экран роли и доступа.
 func HandleSecurity(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	msg := tgbotapi.NewMessage(
-		update.Message.Chat.ID,
-		"🔐 Безопасность\n\n"+
-			"Безопасность аккаунта:\n"+
-			"✅ Двухфакторная аутентификация\n"+
-			"✅ Автоматический выход\n\n"+
-			"🔜 Настройки безопасности",
-	)
-	msg.ReplyMarkup = keyboards.BackToMainMenu()
+	chatID := update.Message.Chat.ID
+
+	role, err := database.GetUserRole(chatID)
+	if err != nil {
+		bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка чтения роли"))
+		return
+	}
+
+	msg := tgbotapi.NewMessage(chatID, roleScreenText(role))
+	msg.ParseMode = "Markdown"
+	msg.ReplyMarkup = keyboards.RolesKeyboard(role)
 
 	if _, err := bot.Send(msg); err != nil {
 		log.Println("Ошибка отправки сообщения:", err)

@@ -156,6 +156,27 @@ func TaskAssigneeKeyboard(taskID int64) tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
+// RolesKeyboard — выбор роли (текущая помечена галочкой).
+func RolesKeyboard(current string) tgbotapi.InlineKeyboardMarkup {
+	label := func(role, name string) string {
+		if role == current {
+			return "✅ " + name
+		}
+		return name
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(label(database.RoleManager, "Менеджер"), "set_role_"+database.RoleManager),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(label(database.RoleForeman, "Прораб"), "set_role_"+database.RoleForeman),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(label(database.RoleViewer, "Заказчик (просмотр)"), "set_role_"+database.RoleViewer),
+		),
+	)
+}
+
 // NotificationsKeyboard — переключатель уведомлений.
 func NotificationsKeyboard(on bool) tgbotapi.InlineKeyboardMarkup {
 	label := "🔔 Включить уведомления"

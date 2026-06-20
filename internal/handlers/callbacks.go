@@ -23,6 +23,11 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 	callbackConfig := tgbotapi.NewCallback(callback.ID, "")
 	bot.Request(callbackConfig)
 
+	// Контроль доступа по роли пользователя
+	if !checkCallbackAccess(bot, chatID, data) {
+		return
+	}
+
 	switch {
 	case data == "project_1":
 		msg := tgbotapi.NewMessage(chatID, "📋 Проект 1: Монтаж труб")
@@ -1025,6 +1030,23 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		msg := tgbotapi.NewMessage(chatID, notificationsText(newValue))
 		msg.ParseMode = "Markdown"
 		msg.ReplyMarkup = keyboards.NotificationsKeyboard(newValue)
+		bot.Send(msg)
+
+	// Смена роли пользователя
+	case strings.HasPrefix(data, "set_role_"):
+		role := strings.TrimPrefix(data, "set_role_")
+		if !database.IsValidRole(role) {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неизвестная роль"))
+			return
+		}
+		if err := database.SetUserRole(chatID, role); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось сменить роль"))
+			return
+		}
+
+		msg := tgbotapi.NewMessage(chatID, roleScreenText(role))
+		msg.ParseMode = "Markdown"
+		msg.ReplyMarkup = keyboards.RolesKeyboard(role)
 		bot.Send(msg)
 
 	default:

@@ -56,6 +56,7 @@ func createTables() error {
 		username TEXT,
 		first_name TEXT,
 		premium BOOLEAN DEFAULT 0,
+		role TEXT DEFAULT 'manager',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
@@ -160,7 +161,15 @@ func createTables() error {
 		return err
 	}
 
+	migrateSchema()
 	return nil
+}
+
+// migrateSchema — безопасные миграции для уже существующих БД.
+// ALTER упадёт с «duplicate column» на свежей БД (колонка уже в CREATE) —
+// это ожидаемо и игнорируется.
+func migrateSchema() {
+	DB.Exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'manager'")
 }
 
 // CloseDB — закрытие соединения

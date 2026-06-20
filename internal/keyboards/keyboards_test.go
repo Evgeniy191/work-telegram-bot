@@ -129,6 +129,27 @@ func TestTaskAssigneeKeyboard(t *testing.T) {
 	}
 }
 
+func TestRolesKeyboard(t *testing.T) {
+	kb := RolesKeyboard(database.RoleViewer)
+	if len(kb.InlineKeyboard) != 3 {
+		t.Fatalf("ожидалось 3 кнопки ролей, получили %d", len(kb.InlineKeyboard))
+	}
+	// Текущая роль помечена галочкой
+	foundCurrent := false
+	for _, row := range kb.InlineKeyboard {
+		b := row[0]
+		if *b.CallbackData == "set_role_"+database.RoleViewer {
+			if !strings.HasPrefix(b.Text, "✅") {
+				t.Error("текущая роль должна быть помечена ✅")
+			}
+			foundCurrent = true
+		}
+	}
+	if !foundCurrent {
+		t.Error("не найдена кнопка текущей роли")
+	}
+}
+
 func TestNotificationsKeyboard(t *testing.T) {
 	on := NotificationsKeyboard(true)
 	if len(on.InlineKeyboard) == 0 || len(on.InlineKeyboard[0]) == 0 {

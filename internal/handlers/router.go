@@ -61,9 +61,13 @@ func RouteCommand(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fsm.
 	case "📋 Проекты", "/myprojects", "📋 Мои проекты":
 		HandleMyProjects(bot, update)
 	case "➕ Новый проект":
-		StartProjectCreation(bot, chatID, fsmManager)
+		if ensureAccess(bot, chatID, permManage) {
+			StartProjectCreation(bot, chatID, fsmManager)
+		}
 	case "➕ Новая задача":
-		StartTaskCreation(bot, chatID, fsmManager)
+		if ensureAccess(bot, chatID, permEdit) {
+			StartTaskCreation(bot, chatID, fsmManager)
+		}
 	case "📝 Задачи":
 		HandleTasks(bot, update)
 	case "👷 Мастера":
