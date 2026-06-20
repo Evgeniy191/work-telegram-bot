@@ -842,6 +842,9 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 				tgbotapi.NewInlineKeyboardButtonData("👷 Исполнитель", fmt.Sprintf("edit_task_assignee_%d", taskID)),
 			),
 			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("📷 Фото работ", fmt.Sprintf("task_photos_%d", taskID)),
+			),
+			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("◀️ К задачам", fmt.Sprintf("view_tasks_%d", task.ProjectID)),
 			),
 		)
@@ -850,6 +853,84 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		msg.ParseMode = "Markdown"
 		msg.ReplyMarkup = buttons
 		bot.Send(msg)
+
+	// Меню фотофиксации задачи
+	case strings.HasPrefix(data, "task_photos_"):
+		taskIDStr := strings.TrimPrefix(data, "task_photos_")
+		taskID, err := strconv.ParseInt(taskIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID задачи"))
+			return
+		}
+		if _, err := database.GetTaskByID(taskID); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Задача не найдена"))
+			return
+		}
+
+		count, _ := database.CountTaskPhotos(taskID)
+		text := fmt.Sprintf("📷 *Фотофиксация работ*\n\nПрикреплено фото: %d", count)
+
+		buttons := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("➕ Добавить фото", fmt.Sprintf("add_photo_%d", taskID)),
+				tgbotapi.NewInlineKeyboardButtonData("🖼 Показать", fmt.Sprintf("show_photos_%d", taskID)),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("◀️ К задаче", fmt.Sprintf("edit_task_%d", taskID)),
+			),
+		)
+		msg := tgbotapi.NewMessage(chatID, text)
+		msg.ParseMode = "Markdown"
+		msg.ReplyMarkup = buttons
+		bot.Send(msg)
+
+	// Старт добавления фото — ждём изображение
+	case strings.HasPrefix(data, "add_photo_"):
+		taskIDStr := strings.TrimPrefix(data, "add_photo_")
+		taskID, err := strconv.ParseInt(taskIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID задачи"))
+			return
+		}
+		if _, err := database.GetTaskByID(taskID); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Задача не найдена"))
+			return
+		}
+
+		userData := fsmManager.GetData(chatID)
+		userData.EditingTaskID = taskID
+		fsmManager.SetData(chatID, userData)
+		fsmManager.SetState(chatID, fsm.StateAddingTaskPhoto)
+
+		bot.Send(tgbotapi.NewMessage(chatID,
+			"📷 Отправь фото работ (можно с подписью). /cancel — отмена."))
+
+	// Показать фотофиксацию задачи
+	case strings.HasPrefix(data, "show_photos_"):
+		taskIDStr := strings.TrimPrefix(data, "show_photos_")
+		taskID, err := strconv.ParseInt(taskIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID задачи"))
+			return
+		}
+
+		photos, err := database.GetTaskPhotos(taskID)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка загрузки фото"))
+			return
+		}
+		if len(photos) == 0 {
+			bot.Send(tgbotapi.NewMessage(chatID, "📷 Фото пока нет."))
+			return
+		}
+
+		for _, p := range photos {
+			photoMsg := tgbotapi.NewPhoto(chatID, tgbotapi.FileID(p.FileID))
+			if p.Caption != "" {
+				photoMsg.Caption = p.Caption
+			}
+			bot.Send(photoMsg)
+		}
 
 	// Переключение уведомлений
 	case data == "toggle_notifications":

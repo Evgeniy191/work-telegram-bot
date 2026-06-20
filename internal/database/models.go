@@ -28,6 +28,15 @@ type Task struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
+// TaskPhoto — фотофиксация по задаче (хранится Telegram file_id).
+type TaskPhoto struct {
+	ID        int64     `json:"id"`
+	TaskID    int64     `json:"task_id"`
+	FileID    string    `json:"file_id"`
+	Caption   string    `json:"caption"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // Master — модель мастера
 type Master struct {
 	ID        int64  `json:"id"`

@@ -108,6 +108,18 @@ func createTables() error {
 
 	CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
 
+	-- 4b. Task photos (фотофиксация работ)
+	CREATE TABLE IF NOT EXISTS task_photos (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		task_id INTEGER NOT NULL,
+		file_id TEXT NOT NULL,
+		caption TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_task_photos_task ON task_photos(task_id);
+
 	-- 5. Reports
 	CREATE TABLE IF NOT EXISTS reports (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,

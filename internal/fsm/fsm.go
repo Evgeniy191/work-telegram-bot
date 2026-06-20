@@ -26,6 +26,7 @@ const (
 	StateEditingTaskDescription  State = "editing_task_description"
 	StateEditingTaskDeadline     State = "editing_task_deadline"
 	StateEditingMasterName       State = "editing_master_name"
+	StateAddingTaskPhoto         State = "adding_task_photo"
 )
 
 // UserData хранит временные данные пользователя

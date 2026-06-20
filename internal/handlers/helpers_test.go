@@ -88,6 +88,19 @@ func (c *capture) contains(sub string) bool {
 	return strings.Contains(c.joined(), sub)
 }
 
+// method — число вызовов конкретного метода API (например, "sendPhoto").
+func (c *capture) method(m string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	n := 0
+	for _, r := range c.reqs {
+		if r.method == m {
+			n++
+		}
+	}
+	return n
+}
+
 // newTestBot создаёт BotAPI, указывающий на локальный мок-сервер.
 func newTestBot(t *testing.T) (*tgbotapi.BotAPI, *capture) {
 	t.Helper()
@@ -128,6 +141,18 @@ func cbUpdate(chatID int64, data string) tgbotapi.Update {
 			From:    &tgbotapi.User{UserName: "tester"},
 			Message: &tgbotapi.Message{Chat: &tgbotapi.Chat{ID: chatID}},
 			Data:    data,
+		},
+	}
+}
+
+// photoUpdate строит обновление с прикреплённым фото.
+func photoUpdate(chatID int64, fileID, caption string) tgbotapi.Update {
+	return tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			Chat:    &tgbotapi.Chat{ID: chatID},
+			From:    &tgbotapi.User{UserName: "tester"},
+			Photo:   []tgbotapi.PhotoSize{{FileID: "small"}, {FileID: fileID}},
+			Caption: caption,
 		},
 	}
 }

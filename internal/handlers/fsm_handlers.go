@@ -386,6 +386,36 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 		fsmManager.ResetState(chatID)
 		return true
 
+	// Добавление фотофиксации к задаче (ожидаем фото, а не текст)
+	case fsm.StateAddingTaskPhoto:
+		data := fsmManager.GetData(chatID)
+
+		if len(update.Message.Photo) == 0 {
+			msg := tgbotapi.NewMessage(chatID,
+				"❌ Это не фото. Отправь изображение работ (или /cancel для отмены):")
+			bot.Send(msg)
+			return true
+		}
+
+		// Берём самый крупный размер (последний в массиве)
+		largest := update.Message.Photo[len(update.Message.Photo)-1]
+		caption := strings.TrimSpace(update.Message.Caption)
+
+		if _, err := database.AddTaskPhoto(data.EditingTaskID, largest.FileID, caption); err != nil {
+			msg := tgbotapi.NewMessage(chatID, "❌ Не удалось сохранить фото")
+			bot.Send(msg)
+			fsmManager.ResetState(chatID)
+			return true
+		}
+
+		count, _ := database.CountTaskPhotos(data.EditingTaskID)
+		msg := tgbotapi.NewMessage(chatID,
+			fmt.Sprintf("✅ Фото добавлено к задаче. Всего фото: %d", count))
+		bot.Send(msg)
+
+		fsmManager.ResetState(chatID)
+		return true
+
 	default:
 		// Неизвестное состояние
 		log.Printf("⚠️ FSM: Неизвестное состояние '%s'", state)
