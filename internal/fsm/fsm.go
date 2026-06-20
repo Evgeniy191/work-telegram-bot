@@ -27,6 +27,8 @@ const (
 	StateEditingTaskDeadline     State = "editing_task_deadline"
 	StateEditingMasterName       State = "editing_master_name"
 	StateAddingTaskPhoto         State = "adding_task_photo"
+	StateAddingExpenseAmount     State = "adding_expense_amount"
+	StateAddingExpenseDesc       State = "adding_expense_desc"
 )
 
 // UserData хранит временные данные пользователя
@@ -41,6 +43,7 @@ type UserData struct {
 	TaskDescription  string
 	EditingTaskID    int64
 	EditingMasterID  int64
+	ExpenseAmount    float64
 }
 
 // Manager управляет состояниями пользователей

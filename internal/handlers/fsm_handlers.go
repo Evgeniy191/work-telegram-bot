@@ -416,6 +416,58 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 		fsmManager.ResetState(chatID)
 		return true
 
+	// Добавление расхода: сумма
+	case fsm.StateAddingExpenseAmount:
+		amount, err := strconv.ParseFloat(strings.TrimSpace(text), 64)
+		if err != nil || amount < 0 {
+			msg := tgbotapi.NewMessage(chatID,
+				"❌ Сумма должна быть положительным числом.\nПример: 15000 или 1250.50\n\n💡 Попробуй ещё раз:")
+			bot.Send(msg)
+			return true
+		}
+
+		data := fsmManager.GetData(chatID)
+		data.ExpenseAmount = roundToTwoDecimals(amount)
+		fsmManager.SetData(chatID, data)
+		fsmManager.SetState(chatID, fsm.StateAddingExpenseDesc)
+
+		msg := tgbotapi.NewMessage(chatID,
+			"📝 Введи назначение расхода (или /skip):")
+		bot.Send(msg)
+		return true
+
+	// Добавление расхода: описание + сохранение
+	case fsm.StateAddingExpenseDesc:
+		data := fsmManager.GetData(chatID)
+		desc := strings.TrimSpace(text)
+		if text == "/skip" {
+			desc = ""
+		}
+
+		if _, err := database.AddExpense(data.EditingProjectID, data.ExpenseAmount, desc); err != nil {
+			msg := tgbotapi.NewMessage(chatID, "❌ Не удалось сохранить расход")
+			bot.Send(msg)
+			fsmManager.ResetState(chatID)
+			return true
+		}
+
+		status, _ := database.GetProjectBudgetStatus(data.EditingProjectID)
+		warn := ""
+		if status.Over {
+			warn = "\n\n🔴 *Внимание: перерасход бюджета!*"
+		}
+
+		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
+			"✅ *Расход добавлен*\n\n"+
+				"💸 Освоено: %.2f ₽ из %.2f ₽ (%d%%)\n"+
+				"💰 Остаток: %.2f ₽%s",
+			status.Spent, status.Budget, status.Percent, status.Remaining, warn))
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+
+		fsmManager.ResetState(chatID)
+		return true
+
 	default:
 		// Неизвестное состояние
 		log.Printf("⚠️ FSM: Неизвестное состояние '%s'", state)

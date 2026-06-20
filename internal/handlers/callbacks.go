@@ -449,6 +449,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("👷 Мастера", fmt.Sprintf("edit_master_%d", projectID)),
+				tgbotapi.NewInlineKeyboardButtonData("💰 Расходы", fmt.Sprintf("expenses_%d", projectID)),
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("◀️ Назад", "back_to_projects"),
@@ -459,6 +460,82 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		msg.ParseMode = "Markdown"
 		msg.ReplyMarkup = buttons
 		bot.Send(msg)
+
+	// Меню расходов проекта (план/факт)
+	case strings.HasPrefix(data, "expenses_"):
+		projectIDStr := strings.TrimPrefix(data, "expenses_")
+		projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID проекта"))
+			return
+		}
+
+		status, err := database.GetProjectBudgetStatus(projectID)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Проект не найден"))
+			return
+		}
+
+		warn := ""
+		if status.Over {
+			warn = "\n🔴 *Перерасход бюджета!*"
+		}
+
+		text := fmt.Sprintf(
+			"💰 *Бюджет проекта (план/факт)*\n\n"+
+				"📊 План: %.2f ₽\n"+
+				"💸 Освоено: %.2f ₽ (%d%%)\n"+
+				"💵 Остаток: %.2f ₽%s\n",
+			status.Budget, status.Spent, status.Percent, status.Remaining, warn)
+
+		expenses, _ := database.GetProjectExpenses(projectID)
+		if len(expenses) > 0 {
+			text += "\n*Последние расходы:*\n"
+			limit := 5
+			for i, e := range expenses {
+				if i >= limit {
+					break
+				}
+				descr := e.Description
+				if descr == "" {
+					descr = "без описания"
+				}
+				text += fmt.Sprintf("• %.2f ₽ — %s\n", e.Amount, descr)
+			}
+		}
+
+		buttons := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("➕ Добавить расход", fmt.Sprintf("add_expense_%d", projectID)),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("◀️ К проекту", fmt.Sprintf("edit_project_%d", projectID)),
+			),
+		)
+		msg := tgbotapi.NewMessage(chatID, text)
+		msg.ParseMode = "Markdown"
+		msg.ReplyMarkup = buttons
+		bot.Send(msg)
+
+	// Старт добавления расхода
+	case strings.HasPrefix(data, "add_expense_"):
+		projectIDStr := strings.TrimPrefix(data, "add_expense_")
+		projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID проекта"))
+			return
+		}
+		if _, err := database.GetProjectByID(projectID); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Проект не найден"))
+			return
+		}
+
+		userData := fsmManager.GetData(chatID)
+		userData.EditingProjectID = projectID
+		fsmManager.SetData(chatID, userData)
+		fsmManager.SetState(chatID, fsm.StateAddingExpenseAmount)
+
+		bot.Send(tgbotapi.NewMessage(chatID, "💸 Введи сумму расхода (₽):"))
 
 	// Удаление проекта (с подтверждением)
 	case strings.HasPrefix(data, "delete_project_"):

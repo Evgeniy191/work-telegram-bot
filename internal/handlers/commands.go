@@ -110,11 +110,18 @@ func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 			overdueLine = fmt.Sprintf("\n🔴 Просрочено задач: %d", overdue)
 		}
 
+		// План/факт по бюджету
+		budgetStatus, _ := database.GetProjectBudgetStatus(p.ID)
+		budgetLine := fmt.Sprintf("💰 Бюджет: %.2f ₽ (освоено %d%%)", p.Budget, budgetStatus.Percent)
+		if budgetStatus.Over {
+			budgetLine += " 🔴 перерасход"
+		}
+
 		text := fmt.Sprintf(
 			"📋 *Проект %d из %d*\n\n"+
 				"*%s*\n"+
 				"🔧 Тип: %s\n"+
-				"💰 Бюджет: %.2f ₽\n"+
+				"%s\n"+
 				"👷 Мастер: %s\n"+
 				"📍 Статус: %s\n"+
 				"📅 Создан: %s\n\n"+
@@ -124,7 +131,7 @@ func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 			len(projects),
 			p.Name,
 			p.Type,
-			p.Budget,
+			budgetLine,
 			masterName,
 			p.Status,
 			p.CreatedAt.Format("02.01.2006"),

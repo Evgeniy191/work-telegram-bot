@@ -37,6 +37,15 @@ type TaskPhoto struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// Expense — фактический расход по проекту.
+type Expense struct {
+	ID          int64     `json:"id"`
+	ProjectID   int64     `json:"project_id"`
+	Amount      float64   `json:"amount"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 // Master — модель мастера
 type Master struct {
 	ID        int64  `json:"id"`
