@@ -100,6 +100,24 @@ func TestMastersKeyboard(t *testing.T) {
 	}
 }
 
+func TestNotificationsKeyboard(t *testing.T) {
+	on := NotificationsKeyboard(true)
+	if len(on.InlineKeyboard) == 0 || len(on.InlineKeyboard[0]) == 0 {
+		t.Fatal("NotificationsKeyboard(true) пустая")
+	}
+	if *on.InlineKeyboard[0][0].CallbackData != "toggle_notifications" {
+		t.Error("ожидался callback toggle_notifications")
+	}
+	if !strings.Contains(on.InlineKeyboard[0][0].Text, "Выключить") {
+		t.Errorf("для включённых ожидалось 'Выключить', получили %q", on.InlineKeyboard[0][0].Text)
+	}
+
+	off := NotificationsKeyboard(false)
+	if !strings.Contains(off.InlineKeyboard[0][0].Text, "Включить") {
+		t.Errorf("для выключенных ожидалось 'Включить', получили %q", off.InlineKeyboard[0][0].Text)
+	}
+}
+
 func TestMastersManageKeyboard(t *testing.T) {
 	kb := MastersManageKeyboard()
 	if len(kb.InlineKeyboard) < 2 {

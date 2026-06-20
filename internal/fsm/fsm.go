@@ -21,6 +21,7 @@ const (
 	StateEditingProjectBudget    State = "editing_project_budget"
 	StateCreatingTaskName        State = "creating_task_name"
 	StateCreatingTaskDescription State = "creating_task_description"
+	StateCreatingTaskDeadline    State = "creating_task_deadline"
 	StateEditingTaskName         State = "editing_task_name"
 	StateEditingTaskDescription  State = "editing_task_description"
 	StateEditingTaskDeadline     State = "editing_task_deadline"

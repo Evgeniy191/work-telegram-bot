@@ -90,20 +90,47 @@ func HandleMasters(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	}
 }
 
-// HandleReports обрабатывает кнопку "📊 Отчёты"
+// HandleReports обрабатывает кнопку "📊 Отчёты" — сводка по портфелю проектов.
 func HandleReports(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	msg := tgbotapi.NewMessage(
-		update.Message.Chat.ID,
-		"📊 Отчёты\n\n"+
-			"В этом разделе ты сможешь:\n"+
-			"• Формировать отчёты по проектам\n"+
-			"• Просматривать статистику\n"+
-			"• Экспортировать данные\n"+
-			"• Анализировать эффективность\n\n"+
-			"🔜 Функционал в разработке...",
+	chatID := update.Message.Chat.ID
+
+	stats, err := database.GetPortfolioStats(chatID)
+	if err != nil {
+		msg := tgbotapi.NewMessage(chatID, "❌ Ошибка формирования отчёта")
+		bot.Send(msg)
+		return
+	}
+
+	if stats.Projects == 0 {
+		msg := tgbotapi.NewMessage(chatID, "📊 Отчёты\n\nПока нет проектов для анализа.")
+		msg.ReplyMarkup = keyboards.BackToMainMenu()
+		bot.Send(msg)
+		return
+	}
+
+	overdueLine := "🟢 нет"
+	if stats.Overdue > 0 {
+		overdueLine = fmt.Sprintf("🔴 %d", stats.Overdue)
+	}
+
+	text := fmt.Sprintf(
+		"📊 *Сводный отчёт*\n\n"+
+			"📁 Проектов: %d\n"+
+			"💰 Суммарный бюджет: %.2f ₽\n"+
+			"📝 Задач всего: %d\n"+
+			"✅ Выполнено: %d\n"+
+			"⏰ Просрочено: %s\n"+
+			"📈 Общий прогресс: %d%%",
+		stats.Projects,
+		stats.TotalBudget,
+		stats.Tasks,
+		stats.Completed,
+		overdueLine,
+		stats.Progress,
 	)
 
-	// Добавляем кнопку возврата
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = keyboards.BackToMainMenu()
 
 	if _, err := bot.Send(msg); err != nil {
@@ -208,18 +235,20 @@ func HandleLanguage(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	}
 }
 
-// HandleNotifications обрабатывает "🔔 Уведомления"
+// HandleNotifications обрабатывает "🔔 Уведомления" — показывает состояние с переключателем.
 func HandleNotifications(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	msg := tgbotapi.NewMessage(
-		update.Message.Chat.ID,
-		"🔔 Уведомления\n\n"+
-			"Текущие настройки:\n"+
-			"✅ Уведомления о задачах\n"+
-			"✅ Уведомления о дедлайнах\n"+
-			"❌ Отчёты\n\n"+
-			"🔜 Настройка уведомлений",
-	)
-	msg.ReplyMarkup = keyboards.BackToMainMenu()
+	chatID := update.Message.Chat.ID
+
+	settings, err := database.GetUserSettings(chatID)
+	if err != nil {
+		msg := tgbotapi.NewMessage(chatID, "❌ Ошибка чтения настроек")
+		bot.Send(msg)
+		return
+	}
+
+	msg := tgbotapi.NewMessage(chatID, notificationsText(settings.Notifications))
+	msg.ParseMode = "Markdown"
+	msg.ReplyMarkup = keyboards.NotificationsKeyboard(settings.Notifications)
 
 	if _, err := bot.Send(msg); err != nil {
 		log.Println("Ошибка отправки сообщения:", err)

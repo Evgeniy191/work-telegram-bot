@@ -78,7 +78,7 @@ func TestFSMIdleAndUnknown(t *testing.T) {
 		t.Error("в StateIdle FSM не должен перехватывать сообщение")
 	}
 
-	mgr.SetState(2005, fsm.StateEditingTaskDeadline) // состояние без обработчика
+	mgr.SetState(2005, fsm.StateEditingProject) // состояние без обработчика
 	if HandleFSMMessage(bot, msgUpdate(2005, "x"), mgr) {
 		t.Error("для необработанного состояния ожидался false")
 	}
@@ -191,11 +191,21 @@ func TestFSMCreatingTaskNameAndDescription(t *testing.T) {
 		t.Errorf("ожидался переход к описанию, состояние=%s", mgr.GetState(chatID))
 	}
 
-	// Описание /skip → задача создаётся
+	// Описание /skip → переход к сроку
+	bot, cap = newTestBot(t)
+	HandleFSMMessage(bot, msgUpdate(chatID, "/skip"), mgr)
+	if mgr.GetState(chatID) != fsm.StateCreatingTaskDeadline {
+		t.Errorf("ожидался переход к сроку, состояние=%s", mgr.GetState(chatID))
+	}
+
+	// Срок /skip → задача создаётся
 	bot, cap = newTestBot(t)
 	HandleFSMMessage(bot, msgUpdate(chatID, "/skip"), mgr)
 	if !cap.contains("Задача создана") {
 		t.Errorf("ожидалось создание задачи, получили: %s", cap.joined())
+	}
+	if mgr.GetState(chatID) != fsm.StateIdle {
+		t.Error("после создания состояние должно сброситься")
 	}
 }
 
@@ -209,10 +219,31 @@ func TestFSMCreatingTaskWithDescription(t *testing.T) {
 	d.TaskProjectID = pid
 	d.TaskName = "Задача Б"
 
+	// Описание → переход к сроку
 	bot, cap := newTestBot(t)
 	HandleFSMMessage(bot, msgUpdate(chatID, "Полезное описание"), mgr)
+	if mgr.GetState(chatID) != fsm.StateCreatingTaskDeadline {
+		t.Errorf("ожидался переход к сроку, состояние=%s", mgr.GetState(chatID))
+	}
+
+	// Неверный формат даты → остаёмся на шаге срока
+	bot, cap = newTestBot(t)
+	HandleFSMMessage(bot, msgUpdate(chatID, "не-дата"), mgr)
+	if !cap.contains("формат") {
+		t.Errorf("ожидалась ошибка формата даты, получили: %s", cap.joined())
+	}
+	if mgr.GetState(chatID) != fsm.StateCreatingTaskDeadline {
+		t.Error("при ошибке формата состояние не должно меняться")
+	}
+
+	// Корректная дата → задача создаётся со сроком
+	bot, cap = newTestBot(t)
+	HandleFSMMessage(bot, msgUpdate(chatID, "25.12.2026"), mgr)
 	if !cap.contains("Задача создана") {
 		t.Errorf("ожидалось создание задачи, получили: %s", cap.joined())
+	}
+	if !cap.contains("25.12.2026") {
+		t.Errorf("ожидался показанный срок, получили: %s", cap.joined())
 	}
 }
 

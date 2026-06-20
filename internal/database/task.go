@@ -4,8 +4,36 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
+
+// deadlineLayout — формат хранения дедлайна в БД (совместим с datetime('now')
+// и парсингом при чтении). Хранение строкой делает сравнения дат предсказуемыми.
+const deadlineLayout = "2006-01-02 15:04:05"
+
+// deadlineParam приводит дедлайн к параметру запроса: строка нужного формата или NULL.
+func deadlineParam(d *time.Time) interface{} {
+	if d == nil {
+		return nil
+	}
+	return d.Format(deadlineLayout)
+}
+
+// ParseDeadline разбирает дату из пользовательского ввода (ДД.ММ.ГГГГ или ГГГГ-ММ-ДД).
+// Пустая строка → nil без ошибки (дедлайн не задан).
+func ParseDeadline(s string) (*time.Time, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, nil
+	}
+	for _, layout := range []string{"02.01.2006", "2006-01-02"} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return &t, nil
+		}
+	}
+	return nil, fmt.Errorf("неверный формат даты")
+}
 
 // CreateTask — добавляет новую задачу к проекту
 func CreateTask(projectID int64, name, description string, deadline *time.Time) (int64, error) {
@@ -20,7 +48,7 @@ func CreateTask(projectID int64, name, description string, deadline *time.Time) 
 	result, err := DB.Exec(`
 		INSERT INTO tasks (project_id, name, description, status, deadline, created_at, updated_at)
 		VALUES (?, ?, ?, 'pending', ?, datetime('now'), datetime('now'))
-	`, projectID, name, description, deadline)
+	`, projectID, name, description, deadlineParam(deadline))
 
 	if err != nil {
 		log.Printf("❌ Ошибка создания задачи: %v", err)
@@ -55,12 +83,12 @@ func GetProjectTasks(projectID int64) ([]Task, error) {
 	var tasks []Task
 	for rows.Next() {
 		var t Task
-		var deadlineStr sql.NullString
-		rows.Scan(&t.ID, &t.ProjectID, &t.Name, &t.Description, &t.Status, &deadlineStr, &t.CreatedAt, &t.UpdatedAt)
+		var deadline sql.NullTime
+		rows.Scan(&t.ID, &t.ProjectID, &t.Name, &t.Description, &t.Status, &deadline, &t.CreatedAt, &t.UpdatedAt)
 
-		if deadlineStr.Valid {
-			deadline, _ := time.Parse("2006-01-02 15:04:05", deadlineStr.String)
-			t.Deadline = &deadline
+		if deadline.Valid {
+			d := deadline.Time
+			t.Deadline = &d
 		}
 
 		tasks = append(tasks, t)
@@ -72,12 +100,12 @@ func GetProjectTasks(projectID int64) ([]Task, error) {
 // GetTaskByID — получает задачу по ID
 func GetTaskByID(taskID int64) (*Task, error) {
 	var t Task
-	var deadlineStr sql.NullString
+	var deadline sql.NullTime
 
 	err := DB.QueryRow(`
 		SELECT id, project_id, name, description, status, deadline, created_at, updated_at
 		FROM tasks WHERE id = ?
-	`, taskID).Scan(&t.ID, &t.ProjectID, &t.Name, &t.Description, &t.Status, &deadlineStr, &t.CreatedAt, &t.UpdatedAt)
+	`, taskID).Scan(&t.ID, &t.ProjectID, &t.Name, &t.Description, &t.Status, &deadline, &t.CreatedAt, &t.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("задача ID=%d не найдена", taskID)
@@ -86,9 +114,9 @@ func GetTaskByID(taskID int64) (*Task, error) {
 		return nil, err
 	}
 
-	if deadlineStr.Valid {
-		deadline, _ := time.Parse("2006-01-02 15:04:05", deadlineStr.String)
-		t.Deadline = &deadline
+	if deadline.Valid {
+		d := deadline.Time
+		t.Deadline = &d
 	}
 
 	return &t, nil
@@ -216,6 +244,54 @@ func CalcProgress(total, completed int) int {
 	return int(float64(completed)/float64(total)*100 + 0.5)
 }
 
+// PortfolioStats — сводная статистика по всем проектам пользователя.
+type PortfolioStats struct {
+	Projects    int
+	TotalBudget float64
+	Tasks       int
+	Completed   int
+	Overdue     int
+	Progress    int
+}
+
+// GetPortfolioStats — агрегирует показатели по проектам пользователя для отчёта.
+func GetPortfolioStats(userID int64) (PortfolioStats, error) {
+	var s PortfolioStats
+
+	// Проекты и бюджет — отдельным запросом, чтобы JOIN с задачами не множил бюджет.
+	err := DB.QueryRow(`
+		SELECT COUNT(*), IFNULL(SUM(budget), 0)
+		FROM projects WHERE user_id = ?
+	`, userID).Scan(&s.Projects, &s.TotalBudget)
+	if err != nil {
+		return s, err
+	}
+
+	// Задачи по всем проектам пользователя: всего, выполнено, просрочено.
+	err = DB.QueryRow(`
+		SELECT
+			COUNT(t.id),
+			IFNULL(SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END), 0),
+			IFNULL(SUM(CASE WHEN t.status <> 'completed'
+				AND t.deadline IS NOT NULL
+				AND t.deadline < datetime('now') THEN 1 ELSE 0 END), 0)
+		FROM tasks t
+		JOIN projects p ON p.id = t.project_id
+		WHERE p.user_id = ?
+	`, userID).Scan(&s.Tasks, &s.Completed, &s.Overdue)
+	if err != nil {
+		return s, err
+	}
+
+	s.Progress = CalcProgress(s.Tasks, s.Completed)
+	return s, nil
+}
+
+// IsTaskOverdue — задача просрочена, если есть дедлайн в прошлом и она не выполнена.
+func IsTaskOverdue(t Task) bool {
+	return t.Status != "completed" && t.Deadline != nil && t.Deadline.Before(time.Now())
+}
+
 // UpdateTaskName — обновляет только название задачи
 func UpdateTaskName(taskID int64, name string) error {
 	_, err := DB.Exec("UPDATE tasks SET name = ?, updated_at = datetime('now') WHERE id = ?", name, taskID)
@@ -230,11 +306,9 @@ func UpdateTaskDescription(taskID int64, description string) error {
 
 // UpdateTaskDeadline — обновляет дедлайн задачи (или сбрасывает, если nil)
 func UpdateTaskDeadline(taskID int64, deadline *time.Time) error {
-	var err error
-	if deadline == nil {
-		_, err = DB.Exec("UPDATE tasks SET deadline = NULL, updated_at = datetime('now') WHERE id = ?", taskID)
-	} else {
-		_, err = DB.Exec("UPDATE tasks SET deadline = ?, updated_at = datetime('now') WHERE id = ?", deadline, taskID)
-	}
+	_, err := DB.Exec(
+		"UPDATE tasks SET deadline = ?, updated_at = datetime('now') WHERE id = ?",
+		deadlineParam(deadline), taskID,
+	)
 	return err
 }

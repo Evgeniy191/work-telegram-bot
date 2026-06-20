@@ -5,6 +5,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Evgeniy191/work-telegram-bot/internal/database"
 	"github.com/Evgeniy191/work-telegram-bot/internal/fsm"
@@ -226,10 +227,33 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 
 		data.TaskDescription = taskDesc
 		fsmManager.SetData(chatID, data)
+		fsmManager.SetState(chatID, fsm.StateCreatingTaskDeadline)
 
-		// Создаём задачу
-		taskID, err := database.CreateTask(data.TaskProjectID, data.TaskName, data.TaskDescription, nil)
+		msg := tgbotapi.NewMessage(chatID,
+			"📅 Введи срок задачи в формате *ДД.ММ.ГГГГ*\n"+
+				"(или /skip — без срока):")
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+		return true
 
+	case fsm.StateCreatingTaskDeadline:
+		data := fsmManager.GetData(chatID)
+
+		var deadline *time.Time
+		if text != "/skip" {
+			d, err := database.ParseDeadline(text)
+			if err != nil {
+				msg := tgbotapi.NewMessage(chatID,
+					"❌ Неверный формат даты.\n"+
+						"Пример: 25.12.2026\n\n"+
+						"💡 Попробуй ещё раз (или /skip):")
+				bot.Send(msg)
+				return true
+			}
+			deadline = d
+		}
+
+		taskID, err := database.CreateTask(data.TaskProjectID, data.TaskName, data.TaskDescription, deadline)
 		if err != nil {
 			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка создания задачи")
 			bot.Send(msg)
@@ -237,15 +261,102 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 			return true
 		}
 
+		deadlineText := "не указан"
+		if deadline != nil {
+			deadlineText = deadline.Format("02.01.2006")
+		}
+
 		msg := tgbotapi.NewMessage(chatID,
 			fmt.Sprintf("✅ *Задача создана!*\n\n"+
 				"📝 %s\n"+
 				"📄 %s\n"+
+				"📅 Срок: %s\n"+
 				"🕐 Статус: Ожидает\n\n"+
-				"ID: %d", data.TaskName, data.TaskDescription, taskID))
+				"ID: %d", data.TaskName, data.TaskDescription, deadlineText, taskID))
 		msg.ParseMode = "Markdown"
 		bot.Send(msg)
 
+		fsmManager.ResetState(chatID)
+		return true
+
+	// Редактирование названия задачи
+	case fsm.StateEditingTaskName:
+		data := fsmManager.GetData(chatID)
+		newName := strings.TrimSpace(text)
+		if newName == "" {
+			msg := tgbotapi.NewMessage(chatID, "❌ Название не может быть пустым. Попробуй ещё раз:")
+			bot.Send(msg)
+			return true
+		}
+
+		if err := database.UpdateTaskName(data.EditingTaskID, newName); err != nil {
+			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка обновления задачи")
+			bot.Send(msg)
+			fsmManager.ResetState(chatID)
+			return true
+		}
+
+		msg := tgbotapi.NewMessage(chatID,
+			fmt.Sprintf("✅ *Название задачи обновлено*\n\nНовое название: *%s*", newName))
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+		fsmManager.ResetState(chatID)
+		return true
+
+	// Редактирование описания задачи
+	case fsm.StateEditingTaskDescription:
+		data := fsmManager.GetData(chatID)
+		newDesc := strings.TrimSpace(text)
+		if text == "/clear" {
+			newDesc = ""
+		}
+
+		if err := database.UpdateTaskDescription(data.EditingTaskID, newDesc); err != nil {
+			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка обновления задачи")
+			bot.Send(msg)
+			fsmManager.ResetState(chatID)
+			return true
+		}
+
+		msg := tgbotapi.NewMessage(chatID, "✅ *Описание задачи обновлено*")
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+		fsmManager.ResetState(chatID)
+		return true
+
+	// Редактирование срока задачи
+	case fsm.StateEditingTaskDeadline:
+		data := fsmManager.GetData(chatID)
+
+		var deadline *time.Time
+		if text != "/clear" {
+			d, err := database.ParseDeadline(text)
+			if err != nil {
+				msg := tgbotapi.NewMessage(chatID,
+					"❌ Неверный формат даты.\n"+
+						"Пример: 25.12.2026\n\n"+
+						"💡 Попробуй ещё раз (или /clear — убрать срок):")
+				bot.Send(msg)
+				return true
+			}
+			deadline = d
+		}
+
+		if err := database.UpdateTaskDeadline(data.EditingTaskID, deadline); err != nil {
+			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка обновления срока")
+			bot.Send(msg)
+			fsmManager.ResetState(chatID)
+			return true
+		}
+
+		deadlineText := "убран"
+		if deadline != nil {
+			deadlineText = deadline.Format("02.01.2006")
+		}
+		msg := tgbotapi.NewMessage(chatID,
+			fmt.Sprintf("✅ *Срок задачи обновлён*\n\nНовый срок: *%s*", deadlineText))
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
 		fsmManager.ResetState(chatID)
 		return true
 

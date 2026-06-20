@@ -9,10 +9,14 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Evgeniy191/work-telegram-bot/internal/database"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
+
+// past72h — момент в прошлом для проверки просрочек.
+func past72h() time.Time { return time.Now().Add(-72 * time.Hour) }
 
 // TestMain поднимает временную БД (хендлеры обращаются к глобальному database.DB).
 func TestMain(m *testing.M) {

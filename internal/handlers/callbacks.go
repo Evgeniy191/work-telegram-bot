@@ -733,11 +733,123 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		msg := tgbotapi.NewMessage(chatID, "✅ Задача удалена")
 		bot.Send(msg)
 
+	// Редактирование названия задачи (специфичные префиксы — перед edit_task_)
+	case strings.HasPrefix(data, "edit_task_name_"):
+		startTaskFieldEdit(bot, chatID, fsmManager, data, "edit_task_name_", fsm.StateEditingTaskName,
+			"📝 Введи новое название задачи:")
+
+	case strings.HasPrefix(data, "edit_task_desc_"):
+		startTaskFieldEdit(bot, chatID, fsmManager, data, "edit_task_desc_", fsm.StateEditingTaskDescription,
+			"📄 Введи новое описание задачи (или /clear — очистить):")
+
+	case strings.HasPrefix(data, "edit_task_deadline_"):
+		startTaskFieldEdit(bot, chatID, fsmManager, data, "edit_task_deadline_", fsm.StateEditingTaskDeadline,
+			"📅 Введи новый срок в формате ДД.ММ.ГГГГ (или /clear — убрать срок):")
+
+	// Меню редактирования задачи
+	case strings.HasPrefix(data, "edit_task_"):
+		taskIDStr := strings.TrimPrefix(data, "edit_task_")
+		taskID, err := strconv.ParseInt(taskIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID задачи"))
+			return
+		}
+
+		task, err := database.GetTaskByID(taskID)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Задача не найдена"))
+			return
+		}
+
+		deadlineText := "не указан"
+		if task.Deadline != nil {
+			deadlineText = task.Deadline.Format("02.01.2006")
+		}
+
+		text := fmt.Sprintf(
+			"✏️ *Редактирование задачи*\n\n"+
+				"📝 %s\n"+
+				"📄 %s\n"+
+				"📅 Срок: %s\n\n"+
+				"Что изменить?",
+			task.Name, task.Description, deadlineText)
+
+		buttons := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("📝 Название", fmt.Sprintf("edit_task_name_%d", taskID)),
+				tgbotapi.NewInlineKeyboardButtonData("📄 Описание", fmt.Sprintf("edit_task_desc_%d", taskID)),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("📅 Срок", fmt.Sprintf("edit_task_deadline_%d", taskID)),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("◀️ К задачам", fmt.Sprintf("view_tasks_%d", task.ProjectID)),
+			),
+		)
+
+		msg := tgbotapi.NewMessage(chatID, text)
+		msg.ParseMode = "Markdown"
+		msg.ReplyMarkup = buttons
+		bot.Send(msg)
+
+	// Переключение уведомлений
+	case data == "toggle_notifications":
+		settings, err := database.GetUserSettings(chatID)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка чтения настроек"))
+			return
+		}
+		newValue := !settings.Notifications
+		if err := database.SetNotifications(chatID, newValue); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось сохранить настройку"))
+			return
+		}
+
+		msg := tgbotapi.NewMessage(chatID, notificationsText(newValue))
+		msg.ParseMode = "Markdown"
+		msg.ReplyMarkup = keyboards.NotificationsKeyboard(newValue)
+		bot.Send(msg)
+
 	default:
 		log.Printf("⚠️ Неизвестный callback_data: %s", data)
 		msg := tgbotapi.NewMessage(chatID, "❌ Неизвестная команда")
 		bot.Send(msg)
 	}
+}
+
+// startTaskFieldEdit разбирает ID задачи из callback, переводит пользователя
+// в нужное состояние редактирования и отправляет приглашение к вводу.
+func startTaskFieldEdit(bot *tgbotapi.BotAPI, chatID int64, fsmManager *fsm.Manager,
+	data, prefix string, state fsm.State, prompt string) {
+
+	taskIDStr := strings.TrimPrefix(data, prefix)
+	taskID, err := strconv.ParseInt(taskIDStr, 10, 64)
+	if err != nil {
+		bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID задачи"))
+		return
+	}
+
+	if _, err := database.GetTaskByID(taskID); err != nil {
+		bot.Send(tgbotapi.NewMessage(chatID, "❌ Задача не найдена"))
+		return
+	}
+
+	userData := fsmManager.GetData(chatID)
+	userData.EditingTaskID = taskID
+	fsmManager.SetData(chatID, userData)
+	fsmManager.SetState(chatID, state)
+
+	bot.Send(tgbotapi.NewMessage(chatID, prompt))
+}
+
+// notificationsText — формирует текст экрана уведомлений по текущему состоянию.
+func notificationsText(on bool) string {
+	status := "❌ Выключены"
+	if on {
+		status = "✅ Включены"
+	}
+	return fmt.Sprintf("🔔 *Уведомления*\n\nТекущее состояние: %s\n\n"+
+		"Уведомления о сроках и просрочках задач.", status)
 }
 
 // ИСПРАВЛЕНО: убрал "data ==" из case

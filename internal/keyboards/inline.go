@@ -119,6 +119,19 @@ func MastersKeyboard() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
+// NotificationsKeyboard — переключатель уведомлений.
+func NotificationsKeyboard(on bool) tgbotapi.InlineKeyboardMarkup {
+	label := "🔔 Включить уведомления"
+	if on {
+		label = "🔕 Выключить уведомления"
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(label, "toggle_notifications"),
+		),
+	)
+}
+
 // MastersManageKeyboard — inline-клавиатура управления мастерами.
 // Для каждого мастера кнопка правки ФИО (callback edit_master_name_<id>).
 func MastersManageKeyboard() tgbotapi.InlineKeyboardMarkup {
