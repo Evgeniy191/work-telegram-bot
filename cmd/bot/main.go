@@ -48,87 +48,13 @@ func main() {
 	updates := bot.GetUpdatesChan(updateConfig)
 
 	// Обрабатываем обновления
+	runUpdates(bot, updates, fsmManager)
+}
+
+// runUpdates читает обновления из канала и передаёт каждое в обработчик.
+// Вынесено отдельно, чтобы цикл обработки можно было покрыть тестом.
+func runUpdates(bot *tgbotapi.BotAPI, updates tgbotapi.UpdatesChannel, fsmManager *fsm.Manager) {
 	for update := range updates {
-		// Inline-кнопки
-		if update.CallbackQuery != nil {
-			handlers.HandleCallback(bot, update, fsmManager)
-			continue
-		}
-
-		// Сообщения
-		if update.Message == nil {
-			continue
-		}
-
-		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
-
-		if update.Message.Text == "/cancel" {
-			chatID := update.Message.Chat.ID
-			currentState := fsmManager.GetState(chatID)
-
-			if currentState != fsm.StateIdle {
-				fsmManager.ResetState(chatID)
-				msg := tgbotapi.NewMessage(chatID, "❌ Действие отменено. Возврат в главное меню.")
-				bot.Send(msg)
-			} else {
-				msg := tgbotapi.NewMessage(chatID, "⚠️ Нечего отменять. Ты в главном меню.")
-				bot.Send(msg)
-			}
-			continue // Прерываем цикл
-		}
-
-		// Проверяем FSM ПЕРЕД switch
-		if handlers.HandleFSMMessage(bot, update, fsmManager) {
-			continue // Сообщение обработано FSM
-		}
-
-		// Обработка команд и Reply-кнопок
-		switch update.Message.Text {
-		case "/start":
-			handlers.HandleStart(bot, update)
-		case "/help", "❓ Помощь":
-			handlers.HandleHelp(bot, update)
-		case "/about":
-			handlers.HandleAbout(bot, update)
-		case "📋 Проекты":
-			handlers.HandleMyProjects(bot, update)
-		case "/myprojects":
-			handlers.HandleMyProjects(bot, update)
-		case "➕ Новый проект":
-			// Запускаем FSM диалог
-			handlers.StartProjectCreation(bot, update.Message.Chat.ID, fsmManager)
-		case "➕ Новая задача":
-			// Запускаем FSM диалог
-			handlers.StartTaskCreation(bot, update.Message.Chat.ID, fsmManager)
-		case "📝 Задачи":
-			handlers.HandleTasks(bot, update)
-		case "👷 Мастера":
-			handlers.HandleMasters(bot, update)
-		case "📊 Отчёты":
-			handlers.HandleReports(bot, update)
-		case "⚙️ Настройки":
-			handlers.HandleSettings(bot, update)
-		case "🏠 Главное меню":
-			handlers.HandleStart(bot, update)
-			// В блоке switch добавь:
-		case "⚡ Быстрые действия":
-			handlers.HandleQuickActions(bot, update)
-		case "📝 Мои задачи":
-			handlers.HandleMyTasks(bot, update)
-		case "🌍 Язык":
-			handlers.HandleLanguage(bot, update)
-		case "🔔 Уведомления":
-			handlers.HandleNotifications(bot, update)
-		case "🎨 Тема":
-			handlers.HandleTheme(bot, update)
-		case "🔐 Безопасность":
-			handlers.HandleSecurity(bot, update)
-		case "📊 Формат отчётов":
-			handlers.HandleReportFormat(bot, update)
-		default:
-			// Обработка обычных сообщений
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Я не понял эту команду. Используй меню ниже 👇")
-			bot.Send(msg)
-		}
+		handlers.ProcessUpdate(bot, update, fsmManager)
 	}
 }
