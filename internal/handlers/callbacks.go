@@ -597,11 +597,13 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 					"*%s* %s\n\n"+
 					"📄 %s\n"+
 					"📅 Дедлайн: %s\n"+
+					"👷 Исполнитель: %s\n"+
 					"⏱ Статус: %s",
 				i+1, len(tasks),
 				task.Name, statusEmoji,
 				task.Description,
 				deadlineText,
+				database.GetMasterNameByID(task.AssigneeID),
 				statusName,
 			)
 
@@ -749,6 +751,57 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		startTaskFieldEdit(bot, chatID, fsmManager, data, "edit_task_deadline_", fsm.StateEditingTaskDeadline,
 			"📅 Введи новый срок в формате ДД.ММ.ГГГГ (или /clear — убрать срок):")
 
+	// Выбор исполнителя задачи — показываем клавиатуру мастеров
+	case strings.HasPrefix(data, "edit_task_assignee_"):
+		taskIDStr := strings.TrimPrefix(data, "edit_task_assignee_")
+		taskID, err := strconv.ParseInt(taskIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID задачи"))
+			return
+		}
+		if _, err := database.GetTaskByID(taskID); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Задача не найдена"))
+			return
+		}
+
+		msg := tgbotapi.NewMessage(chatID, "👷 Выбери исполнителя задачи:")
+		msg.ReplyMarkup = keyboards.TaskAssigneeKeyboard(taskID)
+		bot.Send(msg)
+
+	// Назначение исполнителя: task_assignee_<taskID>_<masterID> (0 — снять)
+	case strings.HasPrefix(data, "task_assignee_"):
+		rest := strings.TrimPrefix(data, "task_assignee_")
+		parts := strings.SplitN(rest, "_", 2)
+		if len(parts) < 2 {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный формат"))
+			return
+		}
+		taskID, err1 := strconv.ParseInt(parts[0], 10, 64)
+		masterID, err2 := strconv.ParseInt(parts[1], 10, 64)
+		if err1 != nil || err2 != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID"))
+			return
+		}
+
+		var assignee *int64
+		assigneeName := "Не назначен"
+		if masterID != 0 {
+			master, err := database.GetMasterByID(masterID)
+			if err != nil {
+				bot.Send(tgbotapi.NewMessage(chatID, "❌ Мастер не найден"))
+				return
+			}
+			assignee = &masterID
+			assigneeName = master.Name
+		}
+
+		if err := database.UpdateTaskAssignee(taskID, assignee); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка назначения исполнителя"))
+			return
+		}
+
+		bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Исполнитель задачи: 👷 %s", assigneeName)))
+
 	// Меню редактирования задачи
 	case strings.HasPrefix(data, "edit_task_"):
 		taskIDStr := strings.TrimPrefix(data, "edit_task_")
@@ -768,14 +821,16 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		if task.Deadline != nil {
 			deadlineText = task.Deadline.Format("02.01.2006")
 		}
+		assigneeName := database.GetMasterNameByID(task.AssigneeID)
 
 		text := fmt.Sprintf(
 			"✏️ *Редактирование задачи*\n\n"+
 				"📝 %s\n"+
 				"📄 %s\n"+
-				"📅 Срок: %s\n\n"+
+				"📅 Срок: %s\n"+
+				"👷 Исполнитель: %s\n\n"+
 				"Что изменить?",
-			task.Name, task.Description, deadlineText)
+			task.Name, task.Description, deadlineText, assigneeName)
 
 		buttons := tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
@@ -784,6 +839,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("📅 Срок", fmt.Sprintf("edit_task_deadline_%d", taskID)),
+				tgbotapi.NewInlineKeyboardButtonData("👷 Исполнитель", fmt.Sprintf("edit_task_assignee_%d", taskID)),
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("◀️ К задачам", fmt.Sprintf("view_tasks_%d", task.ProjectID)),

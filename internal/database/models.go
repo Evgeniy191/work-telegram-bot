@@ -23,6 +23,7 @@ type Task struct {
 	Description string     `json:"description"`
 	Status      string     `json:"status"`
 	Deadline    *time.Time `json:"deadline,omitempty"`
+	AssigneeID  *int64     `json:"assignee_id"` // ID мастера-исполнителя (может быть NULL)
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 }

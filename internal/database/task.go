@@ -67,9 +67,9 @@ func CreateTask(projectID int64, name, description string, deadline *time.Time) 
 // GetProjectTasks — получает задачи проекта
 func GetProjectTasks(projectID int64) ([]Task, error) {
 	query := `
-		SELECT id, project_id, name, description, status, deadline, created_at, updated_at
+		SELECT id, project_id, name, description, status, deadline, assignee_id, created_at, updated_at
 		FROM tasks WHERE project_id = ?
-		ORDER BY 
+		ORDER BY
 			CASE status WHEN 'pending' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'completed' THEN 3 END,
 			created_at ASC
 	`
@@ -84,11 +84,16 @@ func GetProjectTasks(projectID int64) ([]Task, error) {
 	for rows.Next() {
 		var t Task
 		var deadline sql.NullTime
-		rows.Scan(&t.ID, &t.ProjectID, &t.Name, &t.Description, &t.Status, &deadline, &t.CreatedAt, &t.UpdatedAt)
+		var assignee sql.NullInt64
+		rows.Scan(&t.ID, &t.ProjectID, &t.Name, &t.Description, &t.Status, &deadline, &assignee, &t.CreatedAt, &t.UpdatedAt)
 
 		if deadline.Valid {
 			d := deadline.Time
 			t.Deadline = &d
+		}
+		if assignee.Valid {
+			a := assignee.Int64
+			t.AssigneeID = &a
 		}
 
 		tasks = append(tasks, t)
@@ -101,11 +106,12 @@ func GetProjectTasks(projectID int64) ([]Task, error) {
 func GetTaskByID(taskID int64) (*Task, error) {
 	var t Task
 	var deadline sql.NullTime
+	var assignee sql.NullInt64
 
 	err := DB.QueryRow(`
-		SELECT id, project_id, name, description, status, deadline, created_at, updated_at
+		SELECT id, project_id, name, description, status, deadline, assignee_id, created_at, updated_at
 		FROM tasks WHERE id = ?
-	`, taskID).Scan(&t.ID, &t.ProjectID, &t.Name, &t.Description, &t.Status, &deadline, &t.CreatedAt, &t.UpdatedAt)
+	`, taskID).Scan(&t.ID, &t.ProjectID, &t.Name, &t.Description, &t.Status, &deadline, &assignee, &t.CreatedAt, &t.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("задача ID=%d не найдена", taskID)
@@ -118,8 +124,29 @@ func GetTaskByID(taskID int64) (*Task, error) {
 		d := deadline.Time
 		t.Deadline = &d
 	}
+	if assignee.Valid {
+		a := assignee.Int64
+		t.AssigneeID = &a
+	}
 
 	return &t, nil
+}
+
+// UpdateTaskAssignee — назначает (или снимает при nil) исполнителя задачи.
+func UpdateTaskAssignee(taskID int64, masterID *int64) error {
+	result, err := DB.Exec(
+		"UPDATE tasks SET assignee_id = ?, updated_at = datetime('now') WHERE id = ?",
+		masterID, taskID,
+	)
+	if err != nil {
+		log.Printf("❌ Ошибка назначения исполнителя: %v", err)
+		return err
+	}
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("задача ID=%d не найдена", taskID)
+	}
+	return nil
 }
 
 // UpdateTaskStatus — меняет статус задачи

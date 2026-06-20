@@ -100,6 +100,35 @@ func TestMastersKeyboard(t *testing.T) {
 	}
 }
 
+func TestTaskAssigneeKeyboard(t *testing.T) {
+	kb := TaskAssigneeKeyboard(42)
+	if len(kb.InlineKeyboard) < 2 {
+		t.Fatalf("ожидалось >=2 рядов, получили %d", len(kb.InlineKeyboard))
+	}
+
+	foundPick := false
+	foundUnassign := false
+	for _, row := range kb.InlineKeyboard {
+		for _, b := range row {
+			if b.CallbackData == nil {
+				continue
+			}
+			switch {
+			case strings.HasPrefix(*b.CallbackData, "task_assignee_42_") && !strings.HasSuffix(*b.CallbackData, "_0"):
+				foundPick = true
+			case *b.CallbackData == "task_assignee_42_0":
+				foundUnassign = true
+			}
+		}
+	}
+	if !foundPick {
+		t.Error("не найдено кнопок назначения мастера")
+	}
+	if !foundUnassign {
+		t.Error("не найдено кнопки снятия исполнителя")
+	}
+}
+
 func TestNotificationsKeyboard(t *testing.T) {
 	on := NotificationsKeyboard(true)
 	if len(on.InlineKeyboard) == 0 || len(on.InlineKeyboard[0]) == 0 {

@@ -119,6 +119,43 @@ func MastersKeyboard() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
+// TaskAssigneeKeyboard — выбор исполнителя задачи из мастеров.
+// callback: task_assignee_<taskID>_<masterID> (masterID=0 — снять исполнителя).
+func TaskAssigneeKeyboard(taskID int64) tgbotapi.InlineKeyboardMarkup {
+	masters, err := database.GetAllMasters()
+	if err != nil {
+		log.Printf("❌ Не удалось загрузить мастеров: %v", err)
+	}
+
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for i := 0; i < len(masters); i += 2 {
+		row := []tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData(
+				"👷 "+masters[i].Name,
+				fmt.Sprintf("task_assignee_%d_%d", taskID, masters[i].ID),
+			),
+		}
+		if i+1 < len(masters) {
+			row = append(row, tgbotapi.NewInlineKeyboardButtonData(
+				"👷 "+masters[i+1].Name,
+				fmt.Sprintf("task_assignee_%d_%d", taskID, masters[i+1].ID),
+			))
+		}
+		rows = append(rows, row)
+	}
+
+	rows = append(rows,
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➖ Снять исполнителя", fmt.Sprintf("task_assignee_%d_0", taskID)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀️ К задаче", fmt.Sprintf("edit_task_%d", taskID)),
+		),
+	)
+
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
 // NotificationsKeyboard — переключатель уведомлений.
 func NotificationsKeyboard(on bool) tgbotapi.InlineKeyboardMarkup {
 	label := "🔔 Включить уведомления"
