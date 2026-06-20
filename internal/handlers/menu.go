@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"fmt"
 	"log"
 
+	"github.com/Evgeniy191/work-telegram-bot/internal/database"
 	"github.com/Evgeniy191/work-telegram-bot/internal/keyboards"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -51,19 +53,37 @@ func HandleTasks(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 
 // HandleMasters обрабатывает кнопку "👷 Мастера"
 func HandleMasters(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	msg := tgbotapi.NewMessage(
-		update.Message.Chat.ID,
-		"👷 Управление мастерами\n\n"+
-			"В этом разделе ты сможешь:\n"+
-			"• Просматривать список мастеров\n"+
-			"• Добавлять новых мастеров\n"+
-			"• Просматривать их задачи\n"+
-			"• Отслеживать загруженность\n\n"+
-			"🔜 Функционал в разработке...",
-	)
+	chatID := update.Message.Chat.ID
 
-	// Добавляем кнопку возврата
-	msg.ReplyMarkup = keyboards.BackToMainMenu()
+	masters, err := database.GetAllMasters()
+	if err != nil {
+		msg := tgbotapi.NewMessage(chatID, "❌ Ошибка загрузки списка мастеров")
+		bot.Send(msg)
+		return
+	}
+
+	if len(masters) == 0 {
+		msg := tgbotapi.NewMessage(chatID, "👷 Список мастеров пуст.")
+		msg.ReplyMarkup = keyboards.BackToMainMenu()
+		bot.Send(msg)
+		return
+	}
+
+	// Формируем текст со списком мастеров
+	text := "👷 *Управление мастерами*\n\n" +
+		"Список мастеров:\n"
+	for i, m := range masters {
+		specialty := m.Specialty
+		if specialty == "" {
+			specialty = "—"
+		}
+		text += fmt.Sprintf("%d. *%s* — %s\n", i+1, m.Name, specialty)
+	}
+	text += "\nЧтобы изменить ФИО, нажми кнопку ниже:"
+
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = "Markdown"
+	msg.ReplyMarkup = keyboards.MastersManageKeyboard()
 
 	if _, err := bot.Send(msg); err != nil {
 		log.Println("Ошибка отправки сообщения:", err)

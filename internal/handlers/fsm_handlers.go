@@ -249,6 +249,32 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 		fsmManager.ResetState(chatID)
 		return true
 
+	// Редактирование ФИО мастера
+	case fsm.StateEditingMasterName:
+		data := fsmManager.GetData(chatID)
+		newName := strings.TrimSpace(text)
+
+		if newName == "" {
+			msg := tgbotapi.NewMessage(chatID, "❌ ФИО не может быть пустым. Попробуй ещё раз:")
+			bot.Send(msg)
+			return true
+		}
+
+		if err := database.UpdateMasterName(data.EditingMasterID, newName); err != nil {
+			msg := tgbotapi.NewMessage(chatID,
+				fmt.Sprintf("❌ Не удалось обновить ФИО.\n%s\n\n💡 Попробуй другое ФИО:", err.Error()))
+			bot.Send(msg)
+			return true
+		}
+
+		msg := tgbotapi.NewMessage(chatID,
+			fmt.Sprintf("✅ *ФИО обновлено*\n\nНовое ФИО: *%s*", newName))
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+
+		fsmManager.ResetState(chatID)
+		return true
+
 	default:
 		// Неизвестное состояние
 		log.Printf("⚠️ FSM: Неизвестное состояние '%s'", state)

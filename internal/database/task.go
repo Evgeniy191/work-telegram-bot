@@ -181,17 +181,60 @@ func GetTaskStatusName(status string) string {
 	}
 }
 
-// CountProjectTasks — подсчитывает задачи проекта по статусам
+// CountProjectTasks — подсчитывает задачи проекта по статусам.
+// IFNULL защищает от NULL, который SUM возвращает при отсутствии задач.
 func CountProjectTasks(projectID int64) (total, pending, inProgress, completed int, err error) {
 	err = DB.QueryRow(`
-		SELECT 
+		SELECT
 			COUNT(*) as total,
-			SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-			SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
-			SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+			IFNULL(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) as pending,
+			IFNULL(SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END), 0) as in_progress,
+			IFNULL(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) as completed
 		FROM tasks
 		WHERE project_id = ?
 	`, projectID).Scan(&total, &pending, &inProgress, &completed)
 
 	return
+}
+
+// GetProjectProgress — возвращает прогресс проекта в процентах (0–100),
+// рассчитанный как доля выполненных задач от общего числа.
+func GetProjectProgress(projectID int64) (percent, total, completed int, err error) {
+	total, _, _, completed, err = CountProjectTasks(projectID)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	percent = CalcProgress(total, completed)
+	return percent, total, completed, nil
+}
+
+// CalcProgress — доля выполненного в процентах (с округлением).
+func CalcProgress(total, completed int) int {
+	if total <= 0 {
+		return 0
+	}
+	return int(float64(completed)/float64(total)*100 + 0.5)
+}
+
+// UpdateTaskName — обновляет только название задачи
+func UpdateTaskName(taskID int64, name string) error {
+	_, err := DB.Exec("UPDATE tasks SET name = ?, updated_at = datetime('now') WHERE id = ?", name, taskID)
+	return err
+}
+
+// UpdateTaskDescription — обновляет описание задачи
+func UpdateTaskDescription(taskID int64, description string) error {
+	_, err := DB.Exec("UPDATE tasks SET description = ?, updated_at = datetime('now') WHERE id = ?", description, taskID)
+	return err
+}
+
+// UpdateTaskDeadline — обновляет дедлайн задачи (или сбрасывает, если nil)
+func UpdateTaskDeadline(taskID int64, deadline *time.Time) error {
+	var err error
+	if deadline == nil {
+		_, err = DB.Exec("UPDATE tasks SET deadline = NULL, updated_at = datetime('now') WHERE id = ?", taskID)
+	} else {
+		_, err = DB.Exec("UPDATE tasks SET deadline = ?, updated_at = datetime('now') WHERE id = ?", deadline, taskID)
+	}
+	return err
 }

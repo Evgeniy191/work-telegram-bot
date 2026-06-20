@@ -1,8 +1,10 @@
 package keyboards
 
 import (
+	"fmt"
 	"log"
 
+	"github.com/Evgeniy191/work-telegram-bot/internal/database"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
@@ -75,19 +77,37 @@ func BackButton(callbackData string) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
-// MastersKeyboard — inline-клавиатура выбора мастера
+// MastersKeyboard — inline-клавиатура выбора мастера.
+// Список строится динамически из БД, поэтому отредактированные ФИО
+// сразу появляются здесь, а выбор идёт по ID (callback master_pick_<id>).
 func MastersKeyboard() tgbotapi.InlineKeyboardMarkup {
 	log.Println("📋 Генерация inline-клавиатуры 'Мастера'")
 
-	return tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("👷 Иванов Иван", "master_ivanov"),
-			tgbotapi.NewInlineKeyboardButtonData("👷 Петров Пётр", "master_petrov"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("👷 Сидоров Сергей", "master_sidorov"),
-			tgbotapi.NewInlineKeyboardButtonData("👷 Кузнецов Андрей", "master_kuznetsov"),
-		),
+	masters, err := database.GetAllMasters()
+	if err != nil {
+		log.Printf("❌ Не удалось загрузить мастеров: %v", err)
+	}
+
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	// По два мастера в ряд
+	for i := 0; i < len(masters); i += 2 {
+		row := []tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData(
+				"👷 "+masters[i].Name,
+				fmt.Sprintf("master_pick_%d", masters[i].ID),
+			),
+		}
+		if i+1 < len(masters) {
+			row = append(row, tgbotapi.NewInlineKeyboardButtonData(
+				"👷 "+masters[i+1].Name,
+				fmt.Sprintf("master_pick_%d", masters[i+1].ID),
+			))
+		}
+		rows = append(rows, row)
+	}
+
+	rows = append(rows,
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("➕ Без мастера", "master_none"),
 		),
@@ -95,4 +115,31 @@ func MastersKeyboard() tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("◀️ Назад", "back_to_budget"),
 		),
 	)
+
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// MastersManageKeyboard — inline-клавиатура управления мастерами.
+// Для каждого мастера кнопка правки ФИО (callback edit_master_name_<id>).
+func MastersManageKeyboard() tgbotapi.InlineKeyboardMarkup {
+	masters, err := database.GetAllMasters()
+	if err != nil {
+		log.Printf("❌ Не удалось загрузить мастеров: %v", err)
+	}
+
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, m := range masters {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(
+				"✏️ "+m.Name,
+				fmt.Sprintf("edit_master_name_%d", m.ID),
+			),
+		))
+	}
+
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("🏠 Главное меню", "back_menu"),
+	))
+
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }

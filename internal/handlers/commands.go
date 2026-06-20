@@ -100,8 +100,9 @@ func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	for i, p := range projects {
 		masterName := database.GetMasterNameByID(p.MasterID)
 
-		// Получаем статистику задач
+		// Получаем статистику задач и прогресс проекта
 		total, pending, inProgress, completed, _ := database.CountProjectTasks(p.ID)
+		progress := database.CalcProgress(total, completed)
 
 		text := fmt.Sprintf(
 			"📋 *Проект %d из %d*\n\n"+
@@ -111,7 +112,8 @@ func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 				"👷 Мастер: %s\n"+
 				"📍 Статус: %s\n"+
 				"📅 Создан: %s\n\n"+
-				"📝 Задачи: %d (🕐 %d | ⚙️ %d | ✅ %d)",
+				"📝 Задачи: %d (🕐 %d | ⚙️ %d | ✅ %d)\n"+
+				"📊 Прогресс: %s %d%%",
 			i+1,
 			len(projects),
 			p.Name,
@@ -121,6 +123,7 @@ func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 			p.Status,
 			p.CreatedAt.Format("02.01.2006"),
 			total, pending, inProgress, completed,
+			progressBar(progress), progress,
 		)
 
 		// Создаём inline-кнопки

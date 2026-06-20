@@ -97,10 +97,12 @@ func createTables() error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		project_id INTEGER NOT NULL,
 		name TEXT NOT NULL,
+		description TEXT,
 		deadline DATETIME,
 		assignee_id INTEGER,
-		status TEXT DEFAULT 'Новая',
+		status TEXT DEFAULT 'pending',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 	);
 

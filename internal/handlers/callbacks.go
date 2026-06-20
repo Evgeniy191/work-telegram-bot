@@ -137,73 +137,105 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		msg.ReplyMarkup = keyboards.BackButton("back_to_name")
 		bot.Send(msg)
 
-	// ИСПРАВЛЕНО: используем || вместо запятых
-	case data == "master_ivanov" || data == "master_petrov" || data == "master_sidorov" || data == "master_kuznetsov" || data == "master_none":
+	// Выбор мастера (динамически из БД по ID) — создание, смена или выбор
+	case strings.HasPrefix(data, "master_pick_") || data == "master_none":
 		var masterName string
 
-		switch {
-		case data == "master_ivanov":
-			masterName = "Иванов Иван"
-		case data == "master_petrov":
-			masterName = "Петров Пётр"
-		case data == "master_sidorov":
-			masterName = "Сидоров Сергей"
-		case data == "master_kuznetsov":
-			masterName = "Кузнецов Андрей"
-		case data == "master_none":
+		if data == "master_none" {
 			masterName = "Не назначен"
+		} else {
+			masterIDStr := strings.TrimPrefix(data, "master_pick_")
+			masterID, err := strconv.ParseInt(masterIDStr, 10, 64)
+			if err != nil {
+				bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID мастера"))
+				return
+			}
+			master, err := database.GetMasterByID(masterID)
+			if err != nil {
+				bot.Send(tgbotapi.NewMessage(chatID, "❌ Мастер не найден"))
+				return
+			}
+			masterName = master.Name
 		}
 
 		userData := fsmManager.GetData(chatID)
 		userData.ProjectMaster = masterName
-		fsmManager.SetData(chatID, userData)
+		state := fsmManager.GetState(chatID)
 
-		// СОХРАНЕНИЕ В БАЗУ ДАННЫХ
-		budget, _ := strconv.ParseFloat(userData.ProjectBudget, 64)
-		projectID, err := database.CreateProject(
-			chatID,
-			userData.ProjectType,
-			userData.ProjectName,
-			budget,
-			masterName,
-		)
+		switch {
+		// Контекст 1: создание нового проекта (шаг 4/4)
+		case state == fsm.StateCreatingProjectMaster:
+			fsmManager.SetData(chatID, userData)
 
-		if err != nil {
-			log.Printf("❌ Ошибка сохранения проекта: %v", err)
-			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка сохранения проекта в БД")
+			budget, _ := strconv.ParseFloat(userData.ProjectBudget, 64)
+			projectID, err := database.CreateProject(
+				chatID,
+				userData.ProjectType,
+				userData.ProjectName,
+				budget,
+				masterName,
+			)
+			if err != nil {
+				log.Printf("❌ Ошибка сохранения проекта: %v", err)
+				bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка сохранения проекта в БД"))
+				return
+			}
+			log.Printf("✅ Проект ID=%d сохранён в БД", projectID)
+
+			// Сбрасываем только состояние (данные оставляем для "✏️ Редактировать"),
+			// чтобы повторное открытие клавиатуры мастеров не создало дубль проекта.
+			fsmManager.SetState(chatID, fsm.StateIdle)
+
+			typeEmoji := getProjectTypeEmoji(userData.ProjectType)
+			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
+				"🎉 Проект создан!\n\n"+
+					"%s Тип: %s\n"+
+					"📋 Название: %s\n"+
+					"💰 Бюджет: %s ₽\n"+
+					"👷 Ответственный: %s\n"+
+					"📅 Дата создания: %s\n"+
+					"📍 Статус: В работе\n\n"+
+					"✅ Проект добавлен в список!",
+				typeEmoji,
+				userData.ProjectType,
+				userData.ProjectName,
+				formatMoney(budget),
+				masterName,
+				time.Now().Format("02.01.2006"),
+			))
+			msg.ParseMode = "HTML"
+			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData("✏️ Редактировать", "edit_last_project"),
+					tgbotapi.NewInlineKeyboardButtonData("◀️ В меню", "back_menu"),
+				),
+			)
 			bot.Send(msg)
-			return
+
+		// Контекст 2: смена мастера у существующего проекта
+		case userData.EditingProjectID != 0:
+			project, err := database.GetProjectByID(userData.EditingProjectID)
+			if err != nil {
+				bot.Send(tgbotapi.NewMessage(chatID, "❌ Проект не найден"))
+				fsmManager.ResetState(chatID)
+				return
+			}
+
+			if err := database.UpdateProject(project.ID, project.Name, project.Budget, masterName); err != nil {
+				bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка обновления мастера"))
+				return
+			}
+
+			userData.EditingProjectID = 0
+			fsmManager.SetData(chatID, userData)
+
+			bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("✅ Ответственный обновлён: 👷 %s", masterName)))
+
+		// Контекст 3: выбор во временном (in-memory) редактировании
+		default:
+			fsmManager.SetData(chatID, userData)
+			bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("👷 Ответственный выбран: %s", masterName)))
 		}
-
-		log.Printf("✅ Проект ID=%d сохранён в БД", projectID)
-
-		typeEmoji := getProjectTypeEmoji(userData.ProjectType)
-		budget, _ = strconv.ParseFloat(userData.ProjectBudget, 64)
-
-		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
-			"🎉 Проект создан!\n\n"+
-				"%s Тип: %s\n"+
-				"📋 Название: %s\n"+
-				"💰 Бюджет: %s ₽\n"+
-				"👷 Ответственный: %s\n"+
-				"📅 Дата создания: %s\n"+
-				"📍 Статус: В работе\n\n"+
-				"✅ Проект добавлен в список!",
-			typeEmoji,
-			userData.ProjectType,
-			userData.ProjectName,
-			formatMoney(budget),
-			masterName,
-			time.Now().Format("02.01.2006"),
-		))
-		msg.ParseMode = "HTML"
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("✏️ Редактировать", "edit_last_project"),
-				tgbotapi.NewInlineKeyboardButtonData("◀️ В меню", "back_menu"),
-			),
-		)
-		bot.Send(msg)
 
 	case data == "edit_last_project":
 		userData := fsmManager.GetData(chatID)
@@ -279,7 +311,34 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		msg.ParseMode = "Markdown"
 		bot.Send(msg)
 
-	// Редактирование мастера
+	// Редактирование ФИО мастера (раздел "👷 Мастера")
+	case strings.HasPrefix(data, "edit_master_name_"):
+		masterIDStr := strings.TrimPrefix(data, "edit_master_name_")
+		masterID, err := strconv.ParseInt(masterIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID мастера"))
+			return
+		}
+
+		master, err := database.GetMasterByID(masterID)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Мастер не найден"))
+			return
+		}
+
+		userData := fsmManager.GetData(chatID)
+		userData.EditingMasterID = masterID
+		fsmManager.SetData(chatID, userData)
+		fsmManager.SetState(chatID, fsm.StateEditingMasterName)
+
+		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
+			"✏️ *Изменение ФИО мастера*\n\n"+
+				"Текущее ФИО: *%s*\n\n"+
+				"Введи новое ФИО:", master.Name))
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+
+	// Редактирование мастера у проекта
 	case strings.HasPrefix(data, "edit_master_"):
 		projectIDStr := strings.TrimPrefix(data, "edit_master_")
 		projectID, _ := strconv.ParseInt(projectIDStr, 10, 64)
@@ -566,6 +625,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			buttons := tgbotapi.NewInlineKeyboardMarkup(
 				statusButtons,
 				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData("✏️ Редактировать", fmt.Sprintf("edit_task_%d", task.ID)),
 					tgbotapi.NewInlineKeyboardButtonData("🗑️ Удалить", fmt.Sprintf("delete_task_%d", task.ID)),
 				),
 			)
@@ -576,6 +636,15 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			bot.Send(msg)
 		}
 
+		// Прогресс проекта в процентах
+		completedCount := 0
+		for _, t := range tasks {
+			if t.Status == "completed" {
+				completedCount++
+			}
+		}
+		progress := database.CalcProgress(len(tasks), completedCount)
+
 		// Кнопки после списка задач
 		finalButtons := tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
@@ -584,7 +653,9 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			),
 		)
 
-		finalMsg := tgbotapi.NewMessage(chatID, "───────────────")
+		finalMsg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
+			"📊 Прогресс проекта: %s %d%% (%d/%d)",
+			progressBar(progress), progress, completedCount, len(tasks)))
 		finalMsg.ReplyMarkup = finalButtons
 		bot.Send(finalMsg)
 
@@ -683,6 +754,18 @@ func getProjectTypeEmoji(projectType string) string {
 	default:
 		return "📋"
 	}
+}
+
+// progressBar — визуальная полоса прогресса из 10 сегментов (▰ заполнено, ▱ пусто)
+func progressBar(percent int) string {
+	if percent < 0 {
+		percent = 0
+	}
+	if percent > 100 {
+		percent = 100
+	}
+	filled := percent / 10
+	return strings.Repeat("▰", filled) + strings.Repeat("▱", 10-filled)
 }
 
 func formatMoney(amount float64) string {
