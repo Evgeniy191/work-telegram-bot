@@ -151,7 +151,7 @@ func UpdateTaskAssignee(taskID int64, masterID *int64) error {
 
 // UpdateTaskStatus — меняет статус задачи
 func UpdateTaskStatus(taskID int64, status string) error {
-	validStatuses := map[string]bool{"pending": true, "in_progress": true, "completed": true}
+	validStatuses := map[string]bool{"pending": true, "in_progress": true, "review": true, "completed": true}
 	if !validStatuses[status] {
 		return fmt.Errorf("неверный статус: %s", status)
 	}
@@ -215,6 +215,8 @@ func GetTaskStatusEmoji(status string) string {
 		return "🕐"
 	case "in_progress":
 		return "⚙️"
+	case "review":
+		return "🔎"
 	case "completed":
 		return "✅"
 	default:
@@ -229,6 +231,8 @@ func GetTaskStatusName(status string) string {
 		return "Ожидает"
 	case "in_progress":
 		return "В процессе"
+	case "review":
+		return "На проверке"
 	case "completed":
 		return "Выполнена"
 	default:

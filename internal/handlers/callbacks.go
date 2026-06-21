@@ -809,16 +809,19 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			case "pending":
 				statusButtons = []tgbotapi.InlineKeyboardButton{
 					tgbotapi.NewInlineKeyboardButtonData("▶️ Начать", fmt.Sprintf("task_status_%d_in_progress", task.ID)),
-					tgbotapi.NewInlineKeyboardButtonData("✅ Завершить", fmt.Sprintf("task_status_%d_completed", task.ID)),
 				}
 			case "in_progress":
 				statusButtons = []tgbotapi.InlineKeyboardButton{
-					tgbotapi.NewInlineKeyboardButtonData("⏸ В ожидание", fmt.Sprintf("task_status_%d_pending", task.ID)),
-					tgbotapi.NewInlineKeyboardButtonData("✅ Завершить", fmt.Sprintf("task_status_%d_completed", task.ID)),
+					tgbotapi.NewInlineKeyboardButtonData("🔎 Сдать на проверку", fmt.Sprintf("task_status_%d_review", task.ID)),
+				}
+			case "review":
+				statusButtons = []tgbotapi.InlineKeyboardButton{
+					tgbotapi.NewInlineKeyboardButtonData("✅ Принять", fmt.Sprintf("task_accept_%d", task.ID)),
+					tgbotapi.NewInlineKeyboardButtonData("🔁 На доработку", fmt.Sprintf("task_reject_%d", task.ID)),
 				}
 			case "completed":
 				statusButtons = []tgbotapi.InlineKeyboardButton{
-					tgbotapi.NewInlineKeyboardButtonData("🔄 Вернуть", fmt.Sprintf("task_status_%d_pending", task.ID)),
+					tgbotapi.NewInlineKeyboardButtonData("🔄 Вернуть", fmt.Sprintf("task_status_%d_in_progress", task.ID)),
 				}
 			}
 
@@ -917,6 +920,50 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		msg := tgbotapi.NewMessage(chatID,
 			fmt.Sprintf("✅ Статус изменён: %s %s", statusEmoji, statusName))
 		bot.Send(msg)
+
+	// Приёмка работ: принять задачу (только из статуса «на проверке»)
+	case strings.HasPrefix(data, "task_accept_"):
+		taskID, err := strconv.ParseInt(strings.TrimPrefix(data, "task_accept_"), 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID задачи"))
+			return
+		}
+		task, err := database.GetTaskByID(taskID)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Задача не найдена"))
+			return
+		}
+		if task.Status != "review" {
+			bot.Send(tgbotapi.NewMessage(chatID, "⚠️ Задача не на проверке — принимать нечего"))
+			return
+		}
+		if err := database.UpdateTaskStatus(taskID, "completed"); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка приёмки"))
+			return
+		}
+		bot.Send(tgbotapi.NewMessage(chatID, "✅ Работа принята"))
+
+	// Приёмка работ: вернуть на доработку
+	case strings.HasPrefix(data, "task_reject_"):
+		taskID, err := strconv.ParseInt(strings.TrimPrefix(data, "task_reject_"), 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID задачи"))
+			return
+		}
+		task, err := database.GetTaskByID(taskID)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Задача не найдена"))
+			return
+		}
+		if task.Status != "review" {
+			bot.Send(tgbotapi.NewMessage(chatID, "⚠️ Задача не на проверке"))
+			return
+		}
+		if err := database.UpdateTaskStatus(taskID, "in_progress"); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка возврата"))
+			return
+		}
+		bot.Send(tgbotapi.NewMessage(chatID, "🔁 Задача возвращена на доработку"))
 
 	// Удаление задачи
 	case strings.HasPrefix(data, "delete_task_"):

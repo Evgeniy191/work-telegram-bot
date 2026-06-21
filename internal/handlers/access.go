@@ -37,7 +37,9 @@ func requiredCallbackPermission(data string) permLevel {
 		strings.HasPrefix(data, "add_stage_"),
 		strings.HasPrefix(data, "seed_stages_"),
 		strings.HasPrefix(data, "cardmenu_"),
-		strings.HasPrefix(data, "cardset_"):
+		strings.HasPrefix(data, "cardset_"),
+		strings.HasPrefix(data, "task_accept_"),
+		strings.HasPrefix(data, "task_reject_"):
 		return permManage
 
 	// Работа с задачами/расходами/фото/этапами — менеджер и прораб
