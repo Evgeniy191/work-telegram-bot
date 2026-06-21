@@ -461,6 +461,9 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 				tgbotapi.NewInlineKeyboardButtonData("📇 Карточка объекта", fmt.Sprintf("cardmenu_%d", projectID)),
 			),
 			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("📥 Экспорт (CSV)", fmt.Sprintf("export_%d", projectID)),
+			),
+			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("◀️ Назад", "back_to_projects"),
 			),
 		)
@@ -1208,6 +1211,33 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		msg.ParseMode = "Markdown"
 		msg.ReplyMarkup = keyboards.RolesKeyboard(role)
 		bot.Send(msg)
+
+	// Экспорт отчёта по проекту (CSV)
+	case strings.HasPrefix(data, "export_"):
+		projectIDStr := strings.TrimPrefix(data, "export_")
+		projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID проекта"))
+			return
+		}
+		project, err := database.GetProjectByID(projectID)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Проект не найден"))
+			return
+		}
+
+		csvData, err := buildProjectReportCSV(projectID)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка формирования отчёта"))
+			return
+		}
+
+		doc := tgbotapi.NewDocument(chatID, tgbotapi.FileBytes{
+			Name:  fmt.Sprintf("project_%d_report.csv", projectID),
+			Bytes: csvData,
+		})
+		doc.Caption = fmt.Sprintf("📥 Отчёт по проекту: %s", project.Name)
+		bot.Send(doc)
 
 	default:
 		log.Printf("⚠️ Неизвестный callback_data: %s", data)
