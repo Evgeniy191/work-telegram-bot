@@ -56,53 +56,45 @@ func CreateProject(userID int64, projectType, name string, budget float64, maste
 	return projectID, nil
 }
 
+// projectColumns — общий список колонок проекта (алиас p) для выборок.
+const projectColumns = `p.id, p.user_id, p.master_id, p.type, p.name, p.budget, p.status,
+	p.address, p.customer, p.contract_number, p.start_date, p.planned_end,
+	p.created_at, p.updated_at`
+
+// scanProjects читает строки проектов в срез (общий код для всех выборок).
+// Порядок колонок должен соответствовать projectColumns.
+func scanProjects(rows *sql.Rows) []Project {
+	var projects []Project
+	for rows.Next() {
+		var p Project
+		var addr, cust, contract sql.NullString
+		var start, end sql.NullTime
+		if err := rows.Scan(
+			&p.ID, &p.UserID, &p.MasterID, &p.Type, &p.Name, &p.Budget, &p.Status,
+			&addr, &cust, &contract, &start, &end, &p.CreatedAt, &p.UpdatedAt,
+		); err != nil {
+			log.Printf("❌ Ошибка чтения проекта: %v", err)
+			continue
+		}
+		applyCardFields(&p, addr, cust, contract, start, end)
+		projects = append(projects, p)
+	}
+	return projects
+}
+
 // GetUserProjects — получает все проекты пользователя
 func GetUserProjects(userID int64) ([]Project, error) {
-	query := `
-		SELECT p.id, p.user_id, p.master_id, p.type, p.name,
-		       p.budget, p.status,
-		       p.address, p.customer, p.contract_number, p.start_date, p.planned_end,
-		       p.created_at, p.updated_at
-		FROM projects p
-		WHERE p.user_id = ?
-		ORDER BY p.created_at DESC
-	`
-
-	rows, err := DB.Query(query, userID)
+	rows, err := DB.Query(
+		`SELECT `+projectColumns+` FROM projects p WHERE p.user_id = ? ORDER BY p.created_at DESC`,
+		userID,
+	)
 	if err != nil {
 		log.Printf("❌ Ошибка получения проектов: %v", err)
 		return nil, err
 	}
 	defer rows.Close()
 
-	var projects []Project
-
-	for rows.Next() {
-		var p Project
-		var addr, cust, contract sql.NullString
-		var start, end sql.NullTime
-		err := rows.Scan(
-			&p.ID,
-			&p.UserID,
-			&p.MasterID, // Может быть NULL
-			&p.Type,
-			&p.Name,
-			&p.Budget,
-			&p.Status,
-			&addr, &cust, &contract, &start, &end,
-			&p.CreatedAt,
-			&p.UpdatedAt,
-		)
-
-		if err != nil {
-			log.Printf("❌ Ошибка чтения проекта: %v", err)
-			continue
-		}
-
-		applyCardFields(&p, addr, cust, contract, start, end)
-		projects = append(projects, p)
-	}
-
+	projects := scanProjects(rows)
 	log.Printf("📋 Найдено %d проектов для пользователя %d", len(projects), userID)
 	return projects, nil
 }

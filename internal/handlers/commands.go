@@ -96,7 +96,31 @@ func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 		return
 	}
 
-	// Отправляем каждый проект отдельным сообщением с кнопками
+	// Заголовок с доступом к фильтрам и сортировке.
+	header := tgbotapi.NewMessage(chatID, fmt.Sprintf("📋 Твои проекты: %d", len(projects)))
+	header.ReplyMarkup = keyboards.ProjectFilterButton()
+	bot.Send(header)
+
+	renderProjectsList(bot, chatID, projects)
+}
+
+// sendFilteredProjects применяет фильтр и выводит список с пояснением (note).
+func sendFilteredProjects(bot *tgbotapi.BotAPI, chatID int64, f database.ProjectFilter, note string) {
+	projects, err := database.FilterProjects(chatID, f)
+	if err != nil {
+		bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка фильтрации проектов"))
+		return
+	}
+	if len(projects) == 0 {
+		bot.Send(tgbotapi.NewMessage(chatID, "🔎 "+note+"\n\nНичего не найдено."))
+		return
+	}
+	bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf("🔎 %s — найдено: %d", note, len(projects))))
+	renderProjectsList(bot, chatID, projects)
+}
+
+// renderProjectsList отправляет проекты по одному сообщению с кнопками управления.
+func renderProjectsList(bot *tgbotapi.BotAPI, chatID int64, projects []database.Project) {
 	for i, p := range projects {
 		masterName := database.GetMasterNameByID(p.MasterID)
 

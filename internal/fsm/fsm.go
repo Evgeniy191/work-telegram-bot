@@ -33,6 +33,7 @@ const (
 	StateEditingProjectCard      State = "editing_project_card"
 	StateAddingMaterialName      State = "adding_material_name"
 	StateAddingMaterialQty       State = "adding_material_qty"
+	StateSearchingProjects       State = "searching_projects"
 )
 
 // UserData хранит временные данные пользователя

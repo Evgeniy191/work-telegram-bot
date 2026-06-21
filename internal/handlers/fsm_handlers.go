@@ -106,6 +106,17 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 		fsmManager.ResetState(chatID)
 		return true
 
+	// Поиск проектов по объекту/названию/заказчику
+	case fsm.StateSearchingProjects:
+		query := strings.TrimSpace(text)
+		fsmManager.ResetState(chatID)
+		if query == "" {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Пустой запрос. Поиск отменён."))
+			return true
+		}
+		sendFilteredProjects(bot, chatID, database.ProjectFilter{Search: query}, "Поиск: "+query)
+		return true
+
 	case fsm.StateIdle:
 		// Обычный режим — не обрабатываем здесь
 		return false

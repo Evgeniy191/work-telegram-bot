@@ -190,6 +190,80 @@ func NotificationsKeyboard(on bool) tgbotapi.InlineKeyboardMarkup {
 	)
 }
 
+// ProjectFilterButton — кнопка входа в меню фильтра/сортировки списка проектов.
+func ProjectFilterButton() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔎 Фильтр / сортировка", "pfilter"),
+		),
+	)
+}
+
+// ProjectFilterMenu — меню фильтра и сортировки проектов.
+// Кнопки «По статусу»/«По мастеру» добавляются только при наличии данных.
+func ProjectFilterMenu(hasStatuses, hasMasters bool) tgbotapi.InlineKeyboardMarkup {
+	rows := [][]tgbotapi.InlineKeyboardButton{
+		{
+			tgbotapi.NewInlineKeyboardButtonData("🔴 С просрочкой", "pf_overdue"),
+		},
+		{
+			tgbotapi.NewInlineKeyboardButtonData("🔤 По названию", "pf_sort_name"),
+			tgbotapi.NewInlineKeyboardButtonData("💰 По бюджету", "pf_sort_budget"),
+		},
+		{
+			tgbotapi.NewInlineKeyboardButtonData("🆕 Сначала новые", "pf_sort_created"),
+		},
+		{
+			tgbotapi.NewInlineKeyboardButtonData("🔎 Поиск по объекту", "pf_search"),
+		},
+	}
+
+	if hasStatuses {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📊 По статусу", "pf_status"),
+		))
+	}
+	if hasMasters {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("👷 По мастеру", "pf_master"),
+		))
+	}
+
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("📋 Все проекты", "pf_all"),
+	))
+
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// ProjectStatusFilterKeyboard — выбор статуса для фильтра (callback pf_st_<status>).
+func ProjectStatusFilterKeyboard(statuses []string) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, s := range statuses {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📊 "+s, "pf_st_"+s),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("◀️ К фильтрам", "pfilter"),
+	))
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// ProjectMasterFilterKeyboard — выбор мастера для фильтра (callback pf_ms_<id>).
+func ProjectMasterFilterKeyboard(masters []database.Master) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, m := range masters {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("👷 "+m.Name, fmt.Sprintf("pf_ms_%d", m.ID)),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("◀️ К фильтрам", "pfilter"),
+	))
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
 // MastersManageKeyboard — inline-клавиатура управления мастерами.
 // Для каждого мастера кнопка правки ФИО (callback edit_master_name_<id>).
 func MastersManageKeyboard() tgbotapi.InlineKeyboardMarkup {

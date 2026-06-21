@@ -801,6 +801,62 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		msg := tgbotapi.NewMessage(chatID, "Используй /myprojects для просмотра проектов")
 		bot.Send(msg)
 
+	// Меню фильтра/сортировки списка проектов
+	case data == "pfilter":
+		sendProjectFilterMenu(bot, chatID)
+
+	case data == "pf_all":
+		sendFilteredProjects(bot, chatID, database.ProjectFilter{}, "Все проекты")
+
+	case data == "pf_overdue":
+		sendFilteredProjects(bot, chatID, database.ProjectFilter{OnlyOverdue: true}, "С просрочкой")
+
+	case data == "pf_sort_name":
+		sendFilteredProjects(bot, chatID, database.ProjectFilter{Sort: "name"}, "Сортировка: по названию")
+
+	case data == "pf_sort_budget":
+		sendFilteredProjects(bot, chatID, database.ProjectFilter{Sort: "budget"}, "Сортировка: по бюджету")
+
+	case data == "pf_sort_created":
+		sendFilteredProjects(bot, chatID, database.ProjectFilter{Sort: "created"}, "Сортировка: сначала новые")
+
+	case data == "pf_status":
+		statuses, _ := database.GetProjectStatuses(chatID)
+		if len(statuses) == 0 {
+			bot.Send(tgbotapi.NewMessage(chatID, "Нет статусов для фильтра"))
+			return
+		}
+		msg := tgbotapi.NewMessage(chatID, "📊 Выбери статус:")
+		msg.ReplyMarkup = keyboards.ProjectStatusFilterKeyboard(statuses)
+		bot.Send(msg)
+
+	case strings.HasPrefix(data, "pf_st_"):
+		status := strings.TrimPrefix(data, "pf_st_")
+		sendFilteredProjects(bot, chatID, database.ProjectFilter{Status: status}, "Статус: "+status)
+
+	case data == "pf_master":
+		masters, _ := database.GetProjectMasters(chatID)
+		if len(masters) == 0 {
+			bot.Send(tgbotapi.NewMessage(chatID, "Нет мастеров на проектах"))
+			return
+		}
+		msg := tgbotapi.NewMessage(chatID, "👷 Выбери мастера:")
+		msg.ReplyMarkup = keyboards.ProjectMasterFilterKeyboard(masters)
+		bot.Send(msg)
+
+	case strings.HasPrefix(data, "pf_ms_"):
+		mID, err := strconv.ParseInt(strings.TrimPrefix(data, "pf_ms_"), 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID мастера"))
+			return
+		}
+		name := database.GetMasterNameByID(&mID)
+		sendFilteredProjects(bot, chatID, database.ProjectFilter{MasterID: &mID}, "Мастер: "+name)
+
+	case data == "pf_search":
+		fsmManager.SetState(chatID, fsm.StateSearchingProjects)
+		bot.Send(tgbotapi.NewMessage(chatID, "🔎 Введи часть названия объекта, адреса или заказчика:"))
+
 		// Просмотр задач проекта
 	case strings.HasPrefix(data, "view_tasks_"):
 		projectIDStr := strings.TrimPrefix(data, "view_tasks_")
@@ -1393,6 +1449,17 @@ func cardValueOrDash(v string) string {
 		return "—"
 	}
 	return v
+}
+
+// sendProjectFilterMenu отправляет меню фильтра/сортировки проектов.
+// Кнопки по статусу/мастеру показываются только при наличии данных.
+func sendProjectFilterMenu(bot *tgbotapi.BotAPI, chatID int64) {
+	statuses, _ := database.GetProjectStatuses(chatID)
+	masters, _ := database.GetProjectMasters(chatID)
+
+	msg := tgbotapi.NewMessage(chatID, "🔎 Фильтр и сортировка проектов\n\nВыбери критерий:")
+	msg.ReplyMarkup = keyboards.ProjectFilterMenu(len(statuses) > 0, len(masters) > 0)
+	bot.Send(msg)
 }
 
 // actorName — отображаемое имя автора действия для журнала изменений.
