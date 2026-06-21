@@ -164,6 +164,22 @@ func createTables() error {
 
 	CREATE INDEX IF NOT EXISTS idx_expenses_project ON expenses(project_id);
 
+	-- 4f. Audit log (журнал изменений: кто и когда сменил статус/бюджет/исполнителя)
+	CREATE TABLE IF NOT EXISTS audit_log (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		user_name TEXT,
+		project_id INTEGER NOT NULL,
+		entity TEXT NOT NULL,
+		entity_id INTEGER NOT NULL,
+		field TEXT NOT NULL,
+		old_value TEXT,
+		new_value TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_audit_project ON audit_log(project_id);
+
 	-- 5. Reports
 	CREATE TABLE IF NOT EXISTS reports (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,

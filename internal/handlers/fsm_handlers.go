@@ -167,18 +167,17 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 			return true
 		}
 
-		// Получаем текущий проект
-		project, err := database.GetProjectByID(data.EditingProjectID)
-		if err != nil {
+		// Проверяем существование проекта (актуальные данные читает аудируемая обёртка).
+		if _, err := database.GetProjectByID(data.EditingProjectID); err != nil {
 			msg := tgbotapi.NewMessage(chatID, "❌ Проект не найден")
 			bot.Send(msg)
 			fsmManager.ResetState(chatID)
 			return true
 		}
 
-		// Обновляем проект
-		masterName := database.GetMasterNameByID(project.MasterID)
-		err = database.UpdateProject(data.EditingProjectID, project.Name, budget, masterName)
+		// Обновляем бюджет с записью в журнал изменений.
+		err = database.UpdateProjectBudgetAudited(
+			update.Message.From.ID, actorName(update.Message.From), data.EditingProjectID, budget)
 
 		if err != nil {
 			msg := tgbotapi.NewMessage(chatID, "❌ Ошибка обновления проекта")

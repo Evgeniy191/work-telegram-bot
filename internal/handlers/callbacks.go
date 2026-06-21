@@ -465,6 +465,9 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 				tgbotapi.NewInlineKeyboardButtonData("📦 Материалы", fmt.Sprintf("materials_%d", projectID)),
 			),
 			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("🧾 Журнал изменений", fmt.Sprintf("audit_%d", projectID)),
+			),
+			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("◀️ Назад", "back_to_projects"),
 			),
 		)
@@ -596,6 +599,21 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			return
 		}
 		sendMaterialsMenu(bot, chatID, projectID)
+
+	// Журнал изменений проекта (кто и когда сменил статус/бюджет/исполнителя)
+	case strings.HasPrefix(data, "audit_"):
+		projectIDStr := strings.TrimPrefix(data, "audit_")
+		projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID проекта"))
+			return
+		}
+		project, err := database.GetProjectByID(projectID)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Проект не найден"))
+			return
+		}
+		sendAuditLog(bot, chatID, project)
 
 	// Старт добавления материала
 	case strings.HasPrefix(data, "add_material_"):
@@ -964,7 +982,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 
 		newStatus := parts[1] // "in_progress", "pending", "completed"
 
-		err = database.UpdateTaskStatus(taskID, newStatus)
+		err = database.UpdateTaskStatusAudited(callback.From.ID, actorName(callback.From), taskID, newStatus)
 		if err != nil {
 			msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("❌ Ошибка: %v", err))
 			bot.Send(msg)
@@ -994,7 +1012,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			bot.Send(tgbotapi.NewMessage(chatID, "⚠️ Задача не на проверке — принимать нечего"))
 			return
 		}
-		if err := database.UpdateTaskStatus(taskID, "completed"); err != nil {
+		if err := database.UpdateTaskStatusAudited(callback.From.ID, actorName(callback.From), taskID, "completed"); err != nil {
 			bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка приёмки"))
 			return
 		}
@@ -1016,7 +1034,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			bot.Send(tgbotapi.NewMessage(chatID, "⚠️ Задача не на проверке"))
 			return
 		}
-		if err := database.UpdateTaskStatus(taskID, "in_progress"); err != nil {
+		if err := database.UpdateTaskStatusAudited(callback.From.ID, actorName(callback.From), taskID, "in_progress"); err != nil {
 			bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка возврата"))
 			return
 		}
@@ -1094,7 +1112,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			assigneeName = master.Name
 		}
 
-		if err := database.UpdateTaskAssignee(taskID, assignee); err != nil {
+		if err := database.UpdateTaskAssigneeAudited(callback.From.ID, actorName(callback.From), taskID, assignee); err != nil {
 			bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка назначения исполнителя"))
 			return
 		}
@@ -1375,6 +1393,56 @@ func cardValueOrDash(v string) string {
 		return "—"
 	}
 	return v
+}
+
+// actorName — отображаемое имя автора действия для журнала изменений.
+func actorName(u *tgbotapi.User) string {
+	if u == nil {
+		return ""
+	}
+	if u.UserName != "" {
+		return "@" + u.UserName
+	}
+	return u.FirstName
+}
+
+// sendAuditLog отправляет журнал изменений проекта (последние записи).
+func sendAuditLog(bot *tgbotapi.BotAPI, chatID int64, project *database.Project) {
+	entries, err := database.GetProjectAuditLog(project.ID, 20)
+	if err != nil {
+		bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка чтения журнала"))
+		return
+	}
+
+	msg := tgbotapi.NewMessage(chatID, auditLogText(project, entries))
+	msg.ReplyMarkup = keyboards.BackButton(fmt.Sprintf("edit_project_%d", project.ID))
+	bot.Send(msg)
+}
+
+// auditLogText форматирует журнал изменений проекта (без Markdown — значения
+// произвольные, экранирование не требуется).
+func auditLogText(project *database.Project, entries []database.AuditEntry) string {
+	header := fmt.Sprintf("🧾 Журнал изменений\n\n«%s»\n\n", project.Name)
+	if len(entries) == 0 {
+		return header + "Пока нет записей."
+	}
+
+	var b strings.Builder
+	b.WriteString(header)
+	for _, e := range entries {
+		who := e.UserName
+		if who == "" {
+			who = fmt.Sprintf("ID %d", e.UserID)
+		}
+		b.WriteString(fmt.Sprintf("• %s — %s: %s → %s\n  👤 %s\n",
+			e.CreatedAt.Format("02.01.2006 15:04"),
+			database.AuditFieldName(e.Field),
+			cardValueOrDash(e.OldValue),
+			cardValueOrDash(e.NewValue),
+			who,
+		))
+	}
+	return b.String()
 }
 
 // cardDateOrDash — дата в формате ДД.ММ.ГГГГ или прочерк.
