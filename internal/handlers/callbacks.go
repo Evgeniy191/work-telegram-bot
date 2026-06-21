@@ -458,6 +458,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("🏗 Этапы", fmt.Sprintf("stages_%d", projectID)),
+				tgbotapi.NewInlineKeyboardButtonData("📇 Карточка объекта", fmt.Sprintf("cardmenu_%d", projectID)),
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("◀️ Назад", "back_to_projects"),
@@ -468,6 +469,47 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		msg.ParseMode = "Markdown"
 		msg.ReplyMarkup = buttons
 		bot.Send(msg)
+
+	// Карточка объекта/заказчика
+	case strings.HasPrefix(data, "cardmenu_"):
+		projectIDStr := strings.TrimPrefix(data, "cardmenu_")
+		projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID проекта"))
+			return
+		}
+		if _, err := database.GetProjectByID(projectID); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Проект не найден"))
+			return
+		}
+		sendCardMenu(bot, chatID, projectID)
+
+	// Старт редактирования поля карточки: cardset_<field>_<projectID>
+	case strings.HasPrefix(data, "cardset_"):
+		rest := strings.TrimPrefix(data, "cardset_")
+		parts := strings.SplitN(rest, "_", 2)
+		if len(parts) < 2 {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный формат"))
+			return
+		}
+		field := parts[0]
+		projectID, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID проекта"))
+			return
+		}
+		if _, err := database.GetProjectByID(projectID); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Проект не найден"))
+			return
+		}
+
+		userData := fsmManager.GetData(chatID)
+		userData.EditingProjectID = projectID
+		userData.CardField = field
+		fsmManager.SetData(chatID, userData)
+		fsmManager.SetState(chatID, fsm.StateEditingProjectCard)
+
+		bot.Send(tgbotapi.NewMessage(chatID, cardFieldPrompt(field)))
 
 	// Меню этапов проекта (вехи)
 	case strings.HasPrefix(data, "stages_"):
@@ -1176,6 +1218,87 @@ func getProjectTypeEmoji(projectType string) string {
 	default:
 		return "📋"
 	}
+}
+
+// cardFieldPrompt — приглашение к вводу для поля карточки.
+func cardFieldPrompt(field string) string {
+	switch field {
+	case "address":
+		return "📍 Введи адрес объекта (или /clear):"
+	case "customer":
+		return "🧑‍💼 Введи заказчика (или /clear):"
+	case "contract":
+		return "📄 Введи № договора (или /clear):"
+	case "start":
+		return "📅 Введи дату старта ДД.ММ.ГГГГ (или /clear):"
+	case "end":
+		return "🏁 Введи плановую дату сдачи ДД.ММ.ГГГГ (или /clear):"
+	default:
+		return "Введи значение:"
+	}
+}
+
+// cardValueOrDash — значение поля или прочерк.
+func cardValueOrDash(v string) string {
+	if v == "" {
+		return "—"
+	}
+	return v
+}
+
+// cardDateOrDash — дата в формате ДД.ММ.ГГГГ или прочерк.
+func cardDateOrDash(t *time.Time) string {
+	if t == nil {
+		return "—"
+	}
+	return t.Format("02.01.2006")
+}
+
+// sendCardMenu отправляет карточку объекта/заказчика с кнопками правки полей.
+func sendCardMenu(bot *tgbotapi.BotAPI, chatID, projectID int64) {
+	p, err := database.GetProjectByID(projectID)
+	if err != nil {
+		bot.Send(tgbotapi.NewMessage(chatID, "❌ Проект не найден"))
+		return
+	}
+
+	text := fmt.Sprintf(
+		"📇 *Карточка объекта*\n\n"+
+			"*%s*\n\n"+
+			"📍 Адрес: %s\n"+
+			"🧑‍💼 Заказчик: %s\n"+
+			"📄 Договор: %s\n"+
+			"📅 Старт: %s\n"+
+			"🏁 Плановая сдача: %s",
+		p.Name,
+		cardValueOrDash(p.Address),
+		cardValueOrDash(p.Customer),
+		cardValueOrDash(p.ContractNumber),
+		cardDateOrDash(p.StartDate),
+		cardDateOrDash(p.PlannedEnd),
+	)
+
+	buttons := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📍 Адрес", fmt.Sprintf("cardset_address_%d", projectID)),
+			tgbotapi.NewInlineKeyboardButtonData("🧑‍💼 Заказчик", fmt.Sprintf("cardset_customer_%d", projectID)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📄 Договор", fmt.Sprintf("cardset_contract_%d", projectID)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📅 Старт", fmt.Sprintf("cardset_start_%d", projectID)),
+			tgbotapi.NewInlineKeyboardButtonData("🏁 Сдача", fmt.Sprintf("cardset_end_%d", projectID)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀️ К проекту", fmt.Sprintf("edit_project_%d", projectID)),
+		),
+	)
+
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = "Markdown"
+	msg.ReplyMarkup = buttons
+	bot.Send(msg)
 }
 
 // stageStatusEmoji — значок статуса этапа.

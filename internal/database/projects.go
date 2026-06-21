@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 )
 
 // CreateProject — добавляет новый проект в БД
@@ -58,8 +59,10 @@ func CreateProject(userID int64, projectType, name string, budget float64, maste
 // GetUserProjects — получает все проекты пользователя
 func GetUserProjects(userID int64) ([]Project, error) {
 	query := `
-		SELECT p.id, p.user_id, p.master_id, p.type, p.name, 
-		       p.budget, p.status, p.created_at, p.updated_at
+		SELECT p.id, p.user_id, p.master_id, p.type, p.name,
+		       p.budget, p.status,
+		       p.address, p.customer, p.contract_number, p.start_date, p.planned_end,
+		       p.created_at, p.updated_at
 		FROM projects p
 		WHERE p.user_id = ?
 		ORDER BY p.created_at DESC
@@ -76,6 +79,8 @@ func GetUserProjects(userID int64) ([]Project, error) {
 
 	for rows.Next() {
 		var p Project
+		var addr, cust, contract sql.NullString
+		var start, end sql.NullTime
 		err := rows.Scan(
 			&p.ID,
 			&p.UserID,
@@ -84,6 +89,7 @@ func GetUserProjects(userID int64) ([]Project, error) {
 			&p.Name,
 			&p.Budget,
 			&p.Status,
+			&addr, &cust, &contract, &start, &end,
 			&p.CreatedAt,
 			&p.UpdatedAt,
 		)
@@ -93,6 +99,7 @@ func GetUserProjects(userID int64) ([]Project, error) {
 			continue
 		}
 
+		applyCardFields(&p, addr, cust, contract, start, end)
 		projects = append(projects, p)
 	}
 
@@ -104,8 +111,12 @@ func GetUserProjects(userID int64) ([]Project, error) {
 func GetProjectByID(projectID int64) (*Project, error) {
 	var p Project
 
+	var addr, cust, contract sql.NullString
+	var start, end sql.NullTime
 	err := DB.QueryRow(`
-		SELECT id, user_id, master_id, type, name, budget, status, created_at, updated_at
+		SELECT id, user_id, master_id, type, name, budget, status,
+		       address, customer, contract_number, start_date, planned_end,
+		       created_at, updated_at
 		FROM projects
 		WHERE id = ?
 	`, projectID).Scan(
@@ -116,6 +127,7 @@ func GetProjectByID(projectID int64) (*Project, error) {
 		&p.Name,
 		&p.Budget,
 		&p.Status,
+		&addr, &cust, &contract, &start, &end,
 		&p.CreatedAt,
 		&p.UpdatedAt,
 	)
@@ -129,7 +141,58 @@ func GetProjectByID(projectID int64) (*Project, error) {
 		return nil, err
 	}
 
+	applyCardFields(&p, addr, cust, contract, start, end)
 	return &p, nil
+}
+
+// applyCardFields переносит nullable-поля карточки объекта в модель проекта.
+func applyCardFields(p *Project, addr, cust, contract sql.NullString, start, end sql.NullTime) {
+	p.Address = addr.String
+	p.Customer = cust.String
+	p.ContractNumber = contract.String
+	if start.Valid {
+		t := start.Time
+		p.StartDate = &t
+	}
+	if end.Valid {
+		t := end.Time
+		p.PlannedEnd = &t
+	}
+}
+
+// UpdateProjectCardText — обновляет текстовое поле карточки (адрес/заказчик/договор).
+func UpdateProjectCardText(projectID int64, field, value string) error {
+	columns := map[string]string{
+		"address":  "address",
+		"customer": "customer",
+		"contract": "contract_number",
+	}
+	col, ok := columns[field]
+	if !ok {
+		return fmt.Errorf("неизвестное поле карточки: %s", field)
+	}
+	_, err := DB.Exec(
+		fmt.Sprintf("UPDATE projects SET %s = ?, updated_at = datetime('now') WHERE id = ?", col),
+		value, projectID,
+	)
+	return err
+}
+
+// UpdateProjectDate — обновляет дату карточки (start — старт, end — плановая сдача).
+func UpdateProjectDate(projectID int64, field string, d *time.Time) error {
+	columns := map[string]string{
+		"start": "start_date",
+		"end":   "planned_end",
+	}
+	col, ok := columns[field]
+	if !ok {
+		return fmt.Errorf("неизвестное поле даты: %s", field)
+	}
+	_, err := DB.Exec(
+		fmt.Sprintf("UPDATE projects SET %s = ?, updated_at = datetime('now') WHERE id = ?", col),
+		deadlineParam(d), projectID,
+	)
+	return err
 }
 
 // UpdateProject — обновляет данные проекта

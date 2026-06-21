@@ -4,15 +4,20 @@ import "time"
 
 // Project — модель проекта
 type Project struct {
-	ID        int64     `json:"id"`
-	UserID    int64     `json:"user_id"`
-	MasterID  *int64    `json:"master_id"` // Указатель (может быть NULL)
-	Type      string    `json:"type"`
-	Name      string    `json:"name"`
-	Budget    float64   `json:"budget"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID             int64      `json:"id"`
+	UserID         int64      `json:"user_id"`
+	MasterID       *int64     `json:"master_id"` // Указатель (может быть NULL)
+	Type           string     `json:"type"`
+	Name           string     `json:"name"`
+	Budget         float64    `json:"budget"`
+	Status         string     `json:"status"`
+	Address        string     `json:"address"`         // адрес объекта
+	Customer       string     `json:"customer"`        // заказчик
+	ContractNumber string     `json:"contract_number"` // № договора
+	StartDate      *time.Time `json:"start_date"`      // дата старта
+	PlannedEnd     *time.Time `json:"planned_end"`     // плановая сдача
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 // Task — модель задачи

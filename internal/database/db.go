@@ -84,6 +84,11 @@ func createTables() error {
 		name TEXT NOT NULL,
 		budget REAL NOT NULL CHECK (budget >= 0),
 		status TEXT DEFAULT 'В работе',
+		address TEXT,
+		customer TEXT,
+		contract_number TEXT,
+		start_date DATETIME,
+		planned_end DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (user_id) REFERENCES users(id),
@@ -183,6 +188,12 @@ func createTables() error {
 // это ожидаемо и игнорируется.
 func migrateSchema() {
 	DB.Exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'manager'")
+	// Карточка объекта/заказчика
+	DB.Exec("ALTER TABLE projects ADD COLUMN address TEXT")
+	DB.Exec("ALTER TABLE projects ADD COLUMN customer TEXT")
+	DB.Exec("ALTER TABLE projects ADD COLUMN contract_number TEXT")
+	DB.Exec("ALTER TABLE projects ADD COLUMN start_date DATETIME")
+	DB.Exec("ALTER TABLE projects ADD COLUMN planned_end DATETIME")
 }
 
 // CloseDB — закрытие соединения

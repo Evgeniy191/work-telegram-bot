@@ -495,6 +495,46 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 		fsmManager.ResetState(chatID)
 		return true
 
+	// Редактирование поля карточки объекта
+	case fsm.StateEditingProjectCard:
+		data := fsmManager.GetData(chatID)
+		field := data.CardField
+
+		var err error
+		switch field {
+		case "start", "end":
+			var d *time.Time
+			if text != "/clear" {
+				parsed, perr := database.ParseDeadline(text)
+				if perr != nil {
+					msg := tgbotapi.NewMessage(chatID,
+						"❌ Неверный формат даты.\nПример: 25.12.2026\n\n💡 Попробуй ещё раз (или /clear):")
+					bot.Send(msg)
+					return true
+				}
+				d = parsed
+			}
+			err = database.UpdateProjectDate(data.EditingProjectID, field, d)
+		default:
+			val := strings.TrimSpace(text)
+			if text == "/clear" {
+				val = ""
+			}
+			err = database.UpdateProjectCardText(data.EditingProjectID, field, val)
+		}
+
+		if err != nil {
+			msg := tgbotapi.NewMessage(chatID, "❌ Не удалось сохранить карточку")
+			bot.Send(msg)
+			fsmManager.ResetState(chatID)
+			return true
+		}
+
+		msg := tgbotapi.NewMessage(chatID, "✅ Карточка объекта обновлена")
+		bot.Send(msg)
+		fsmManager.ResetState(chatID)
+		return true
+
 	default:
 		// Неизвестное состояние
 		log.Printf("⚠️ FSM: Неизвестное состояние '%s'", state)
