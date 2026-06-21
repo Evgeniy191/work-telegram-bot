@@ -457,6 +457,9 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 				tgbotapi.NewInlineKeyboardButtonData("💰 Расходы", fmt.Sprintf("expenses_%d", projectID)),
 			),
 			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("🏗 Этапы", fmt.Sprintf("stages_%d", projectID)),
+			),
+			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("◀️ Назад", "back_to_projects"),
 			),
 		)
@@ -465,6 +468,74 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 		msg.ParseMode = "Markdown"
 		msg.ReplyMarkup = buttons
 		bot.Send(msg)
+
+	// Меню этапов проекта (вехи)
+	case strings.HasPrefix(data, "stages_"):
+		projectIDStr := strings.TrimPrefix(data, "stages_")
+		projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID проекта"))
+			return
+		}
+		if _, err := database.GetProjectByID(projectID); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Проект не найден"))
+			return
+		}
+
+		sendStagesMenu(bot, chatID, projectID)
+
+	// Добавление этапа
+	case strings.HasPrefix(data, "add_stage_"):
+		projectIDStr := strings.TrimPrefix(data, "add_stage_")
+		projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID проекта"))
+			return
+		}
+		if _, err := database.GetProjectByID(projectID); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Проект не найден"))
+			return
+		}
+
+		userData := fsmManager.GetData(chatID)
+		userData.EditingProjectID = projectID
+		fsmManager.SetData(chatID, userData)
+		fsmManager.SetState(chatID, fsm.StateAddingStageName)
+
+		bot.Send(tgbotapi.NewMessage(chatID, "🏗 Введи название этапа:"))
+
+	// Типовые этапы
+	case strings.HasPrefix(data, "seed_stages_"):
+		projectIDStr := strings.TrimPrefix(data, "seed_stages_")
+		projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID проекта"))
+			return
+		}
+		if err := database.SeedStandardStages(projectID); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось добавить этапы"))
+			return
+		}
+		sendStagesMenu(bot, chatID, projectID)
+
+	// Переключение статуса этапа (цикл)
+	case strings.HasPrefix(data, "stage_next_"):
+		stageIDStr := strings.TrimPrefix(data, "stage_next_")
+		stageID, err := strconv.ParseInt(stageIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID этапа"))
+			return
+		}
+		stage, err := database.GetStageByID(stageID)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Этап не найден"))
+			return
+		}
+		if err := database.UpdateStageStatus(stageID, database.NextStageStatus(stage.Status)); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось изменить этап"))
+			return
+		}
+		sendStagesMenu(bot, chatID, stage.ProjectID)
 
 	// Меню расходов проекта (план/факт)
 	case strings.HasPrefix(data, "expenses_"):
@@ -1105,6 +1176,61 @@ func getProjectTypeEmoji(projectType string) string {
 	default:
 		return "📋"
 	}
+}
+
+// stageStatusEmoji — значок статуса этапа.
+func stageStatusEmoji(status string) string {
+	switch status {
+	case "completed":
+		return "✅"
+	case "in_progress":
+		return "⚙️"
+	default:
+		return "🕐"
+	}
+}
+
+// sendStagesMenu отправляет меню этапов проекта с прогрессом по вехам.
+func sendStagesMenu(bot *tgbotapi.BotAPI, chatID, projectID int64) {
+	stages, _ := database.GetProjectStages(projectID)
+	percent, total, completed, _ := database.GetProjectStageProgress(projectID)
+
+	text := "🏗 *Этапы проекта*\n\n"
+	if total == 0 {
+		text += "Этапов пока нет.\nДобавь свой или подставь типовые."
+	} else {
+		for _, s := range stages {
+			text += fmt.Sprintf("%s %s\n", stageStatusEmoji(s.Status), s.Name)
+		}
+		text += fmt.Sprintf("\n📊 Прогресс по этапам: %s %d%% (%d/%d)",
+			progressBar(percent), percent, completed, total)
+	}
+
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, s := range stages {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(
+				fmt.Sprintf("%s %s", stageStatusEmoji(s.Status), s.Name),
+				fmt.Sprintf("stage_next_%d", s.ID)),
+		))
+	}
+
+	addRow := []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("➕ Этап", fmt.Sprintf("add_stage_%d", projectID)),
+	}
+	if total == 0 {
+		addRow = append(addRow,
+			tgbotapi.NewInlineKeyboardButtonData("🏗 Типовые этапы", fmt.Sprintf("seed_stages_%d", projectID)))
+	}
+	rows = append(rows, addRow)
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("◀️ К проекту", fmt.Sprintf("edit_project_%d", projectID)),
+	))
+
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = "Markdown"
+	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
+	bot.Send(msg)
 }
 
 // progressBar — визуальная полоса прогресса из 10 сегментов (▰ заполнено, ▱ пусто)

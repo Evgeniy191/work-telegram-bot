@@ -117,6 +117,12 @@ func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 			budgetLine += " 🔴 перерасход"
 		}
 
+		// Прогресс по этапам (если заданы)
+		stageLine := ""
+		if sp, st, sc, _ := database.GetProjectStageProgress(p.ID); st > 0 {
+			stageLine = fmt.Sprintf("\n🏗 Этапы: %d/%d (%d%%)", sc, st, sp)
+		}
+
 		text := fmt.Sprintf(
 			"📋 *Проект %d из %d*\n\n"+
 				"*%s*\n"+
@@ -126,7 +132,7 @@ func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 				"📍 Статус: %s\n"+
 				"📅 Создан: %s\n\n"+
 				"📝 Задачи: %d (🕐 %d | ⚙️ %d | ✅ %d)\n"+
-				"📊 Прогресс: %s %d%%%s",
+				"📊 Прогресс: %s %d%%%s%s",
 			i+1,
 			len(projects),
 			p.Name,
@@ -137,6 +143,7 @@ func HandleMyProjects(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 			p.CreatedAt.Format("02.01.2006"),
 			total, pending, inProgress, completed,
 			progressBar(progress), progress,
+			stageLine,
 			overdueLine,
 		)
 

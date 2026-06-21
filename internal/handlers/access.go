@@ -33,17 +33,20 @@ func requiredCallbackPermission(data string) permLevel {
 		strings.HasPrefix(data, "edit_budget_"),
 		strings.HasPrefix(data, "edit_master_"), // включая edit_master_name_
 		strings.HasPrefix(data, "delete_project_"),
-		strings.HasPrefix(data, "confirm_delete_"):
+		strings.HasPrefix(data, "confirm_delete_"),
+		strings.HasPrefix(data, "add_stage_"),
+		strings.HasPrefix(data, "seed_stages_"):
 		return permManage
 
-	// Работа с задачами/расходами/фото — менеджер и прораб
+	// Работа с задачами/расходами/фото/этапами — менеджер и прораб
 	case strings.HasPrefix(data, "add_task_"),
 		strings.HasPrefix(data, "edit_task_"),
 		strings.HasPrefix(data, "task_status_"),
 		strings.HasPrefix(data, "delete_task_"),
 		strings.HasPrefix(data, "task_assignee_"),
 		strings.HasPrefix(data, "add_expense_"),
-		strings.HasPrefix(data, "add_photo_"):
+		strings.HasPrefix(data, "add_photo_"),
+		strings.HasPrefix(data, "stage_next_"):
 		return permEdit
 
 	default:

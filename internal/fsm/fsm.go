@@ -29,6 +29,7 @@ const (
 	StateAddingTaskPhoto         State = "adding_task_photo"
 	StateAddingExpenseAmount     State = "adding_expense_amount"
 	StateAddingExpenseDesc       State = "adding_expense_desc"
+	StateAddingStageName         State = "adding_stage_name"
 )
 
 // UserData хранит временные данные пользователя

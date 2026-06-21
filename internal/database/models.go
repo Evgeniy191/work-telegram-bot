@@ -37,6 +37,16 @@ type TaskPhoto struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// Stage — этап (веха) проекта.
+type Stage struct {
+	ID        int64     `json:"id"`
+	ProjectID int64     `json:"project_id"`
+	Name      string    `json:"name"`
+	Position  int       `json:"position"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // Expense — фактический расход по проекту.
 type Expense struct {
 	ID          int64     `json:"id"`

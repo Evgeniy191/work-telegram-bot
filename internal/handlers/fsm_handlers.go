@@ -468,6 +468,33 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 		fsmManager.ResetState(chatID)
 		return true
 
+	// Добавление этапа проекта
+	case fsm.StateAddingStageName:
+		data := fsmManager.GetData(chatID)
+		name := strings.TrimSpace(text)
+		if name == "" {
+			msg := tgbotapi.NewMessage(chatID, "❌ Название этапа не может быть пустым. Попробуй ещё раз:")
+			bot.Send(msg)
+			return true
+		}
+
+		if _, err := database.AddStage(data.EditingProjectID, name); err != nil {
+			msg := tgbotapi.NewMessage(chatID, "❌ Не удалось добавить этап")
+			bot.Send(msg)
+			fsmManager.ResetState(chatID)
+			return true
+		}
+
+		percent, total, completed, _ := database.GetProjectStageProgress(data.EditingProjectID)
+		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
+			"✅ Этап добавлен: *%s*\n\n🏗 Этапов: %d (выполнено %d, %d%%)",
+			name, total, completed, percent))
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+
+		fsmManager.ResetState(chatID)
+		return true
+
 	default:
 		// Неизвестное состояние
 		log.Printf("⚠️ FSM: Неизвестное состояние '%s'", state)
