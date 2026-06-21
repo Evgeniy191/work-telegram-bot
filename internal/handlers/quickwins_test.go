@@ -156,13 +156,21 @@ func TestHandleReports(t *testing.T) {
 	tasks, _ := database.GetProjectTasks(pid)
 	database.UpdateTaskDeadline(tasks[3].ID, &past) // одна просрочка
 
+	database.AddExpense(pid, 250, "материалы")
+
 	bot, cap = newTestBot(t)
 	HandleReports(bot, msgUpdate(chatID, "📊 Отчёты"))
-	if !cap.contains("Сводный отчёт") {
-		t.Errorf("ожидался отчёт, получили: %s", cap.joined())
+	if !cap.contains("Дашборд портфеля") {
+		t.Errorf("ожидался дашборд, получили: %s", cap.joined())
 	}
 	if !cap.contains("50%") {
 		t.Errorf("ожидался прогресс 50%%, получили: %s", cap.joined())
+	}
+	if !cap.contains("В работе") {
+		t.Errorf("ожидалась разбивка по статусам, получили: %s", cap.joined())
+	}
+	if !cap.contains("Освоено") {
+		t.Errorf("ожидалось освоение бюджета, получили: %s", cap.joined())
 	}
 }
 
