@@ -42,6 +42,16 @@ type TaskPhoto struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// Material — заявка на материал по проекту.
+type Material struct {
+	ID        int64     `json:"id"`
+	ProjectID int64     `json:"project_id"`
+	Name      string    `json:"name"`
+	Quantity  string    `json:"quantity"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // Stage — этап (веха) проекта.
 type Stage struct {
 	ID        int64     `json:"id"`

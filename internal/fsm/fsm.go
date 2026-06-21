@@ -31,6 +31,8 @@ const (
 	StateAddingExpenseDesc       State = "adding_expense_desc"
 	StateAddingStageName         State = "adding_stage_name"
 	StateEditingProjectCard      State = "editing_project_card"
+	StateAddingMaterialName      State = "adding_material_name"
+	StateAddingMaterialQty       State = "adding_material_qty"
 )
 
 // UserData хранит временные данные пользователя
@@ -47,6 +49,7 @@ type UserData struct {
 	EditingMasterID  int64
 	ExpenseAmount    float64
 	CardField        string
+	MaterialName     string
 }
 
 // Manager управляет состояниями пользователей

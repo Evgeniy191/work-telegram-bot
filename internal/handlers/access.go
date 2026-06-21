@@ -50,7 +50,9 @@ func requiredCallbackPermission(data string) permLevel {
 		strings.HasPrefix(data, "task_assignee_"),
 		strings.HasPrefix(data, "add_expense_"),
 		strings.HasPrefix(data, "add_photo_"),
-		strings.HasPrefix(data, "stage_next_"):
+		strings.HasPrefix(data, "stage_next_"),
+		strings.HasPrefix(data, "add_material_"),
+		strings.HasPrefix(data, "material_next_"):
 		return permEdit
 
 	default:

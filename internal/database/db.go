@@ -139,6 +139,19 @@ func createTables() error {
 
 	CREATE INDEX IF NOT EXISTS idx_stages_project ON stages(project_id);
 
+	-- 4e. Materials (реестр заявок на материалы)
+	CREATE TABLE IF NOT EXISTS materials (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project_id INTEGER NOT NULL,
+		name TEXT NOT NULL,
+		quantity TEXT,
+		status TEXT DEFAULT 'ordered',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_materials_project ON materials(project_id);
+
 	-- 4c. Expenses (учёт фактических расходов по проекту)
 	CREATE TABLE IF NOT EXISTS expenses (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,

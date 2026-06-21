@@ -535,6 +535,46 @@ func HandleFSMMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *
 		fsmManager.ResetState(chatID)
 		return true
 
+	// Добавление материала: название
+	case fsm.StateAddingMaterialName:
+		data := fsmManager.GetData(chatID)
+		name := strings.TrimSpace(text)
+		if name == "" {
+			msg := tgbotapi.NewMessage(chatID, "❌ Название материала не может быть пустым. Попробуй ещё раз:")
+			bot.Send(msg)
+			return true
+		}
+		data.MaterialName = name
+		fsmManager.SetData(chatID, data)
+		fsmManager.SetState(chatID, fsm.StateAddingMaterialQty)
+
+		msg := tgbotapi.NewMessage(chatID, "🔢 Введи количество (например, «10 мешков», или /skip):")
+		bot.Send(msg)
+		return true
+
+	// Добавление материала: количество + сохранение
+	case fsm.StateAddingMaterialQty:
+		data := fsmManager.GetData(chatID)
+		qty := strings.TrimSpace(text)
+		if text == "/skip" {
+			qty = ""
+		}
+
+		if _, err := database.AddMaterial(data.EditingProjectID, data.MaterialName, qty); err != nil {
+			msg := tgbotapi.NewMessage(chatID, "❌ Не удалось добавить материал")
+			bot.Send(msg)
+			fsmManager.ResetState(chatID)
+			return true
+		}
+
+		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
+			"✅ Заявка добавлена: *%s* %s\n🛒 Статус: Заказано", data.MaterialName, qty))
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+
+		fsmManager.ResetState(chatID)
+		return true
+
 	default:
 		// Неизвестное состояние
 		log.Printf("⚠️ FSM: Неизвестное состояние '%s'", state)

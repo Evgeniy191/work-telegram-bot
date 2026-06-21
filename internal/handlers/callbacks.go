@@ -462,6 +462,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("📥 Экспорт (CSV)", fmt.Sprintf("export_%d", projectID)),
+				tgbotapi.NewInlineKeyboardButtonData("📦 Материалы", fmt.Sprintf("materials_%d", projectID)),
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("◀️ Назад", "back_to_projects"),
@@ -581,6 +582,59 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update, fsmManager *fs
 			return
 		}
 		sendStagesMenu(bot, chatID, stage.ProjectID)
+
+	// Меню материалов проекта
+	case strings.HasPrefix(data, "materials_"):
+		projectIDStr := strings.TrimPrefix(data, "materials_")
+		projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID проекта"))
+			return
+		}
+		if _, err := database.GetProjectByID(projectID); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Проект не найден"))
+			return
+		}
+		sendMaterialsMenu(bot, chatID, projectID)
+
+	// Старт добавления материала
+	case strings.HasPrefix(data, "add_material_"):
+		projectIDStr := strings.TrimPrefix(data, "add_material_")
+		projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID проекта"))
+			return
+		}
+		if _, err := database.GetProjectByID(projectID); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Проект не найден"))
+			return
+		}
+
+		userData := fsmManager.GetData(chatID)
+		userData.EditingProjectID = projectID
+		fsmManager.SetData(chatID, userData)
+		fsmManager.SetState(chatID, fsm.StateAddingMaterialName)
+
+		bot.Send(tgbotapi.NewMessage(chatID, "📦 Введи название материала:"))
+
+	// Переключение статуса поставки материала (цикл)
+	case strings.HasPrefix(data, "material_next_"):
+		materialIDStr := strings.TrimPrefix(data, "material_next_")
+		materialID, err := strconv.ParseInt(materialIDStr, 10, 64)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Неверный ID материала"))
+			return
+		}
+		material, err := database.GetMaterialByID(materialID)
+		if err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Материал не найден"))
+			return
+		}
+		if err := database.UpdateMaterialStatus(materialID, database.NextMaterialStatus(material.Status)); err != nil {
+			bot.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось изменить статус"))
+			return
+		}
+		sendMaterialsMenu(bot, chatID, material.ProjectID)
 
 	// Меню расходов проекта (план/факт)
 	case strings.HasPrefix(data, "expenses_"):
@@ -1375,6 +1429,48 @@ func sendCardMenu(bot *tgbotapi.BotAPI, chatID, projectID int64) {
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = buttons
+	bot.Send(msg)
+}
+
+// sendMaterialsMenu отправляет реестр заявок на материалы проекта.
+func sendMaterialsMenu(bot *tgbotapi.BotAPI, chatID, projectID int64) {
+	materials, _ := database.GetProjectMaterials(projectID)
+
+	text := "📦 *Материалы проекта*\n\n"
+	if len(materials) == 0 {
+		text += "Заявок пока нет."
+	} else {
+		for _, m := range materials {
+			qty := ""
+			if m.Quantity != "" {
+				qty = " — " + m.Quantity
+			}
+			text += fmt.Sprintf("%s %s%s (%s)\n",
+				database.MaterialStatusEmoji(m.Status), m.Name, qty, database.MaterialStatusName(m.Status))
+		}
+		text += "\nНажми на материал, чтобы сменить статус поставки."
+	}
+
+	var rows [][]tgbotapi.InlineKeyboardButton
+	for _, m := range materials {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(
+				fmt.Sprintf("%s %s", database.MaterialStatusEmoji(m.Status), m.Name),
+				fmt.Sprintf("material_next_%d", m.ID)),
+		))
+	}
+	rows = append(rows,
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ Заявка", fmt.Sprintf("add_material_%d", projectID)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("◀️ К проекту", fmt.Sprintf("edit_project_%d", projectID)),
+		),
+	)
+
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = "Markdown"
+	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
 	bot.Send(msg)
 }
 
